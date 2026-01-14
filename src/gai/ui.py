@@ -58,47 +58,107 @@ def translate(key: str) -> str:
 # Shortcut
 t = translate
 
+import os
+from rich.columns import Columns
+from rich.align import Align
+from rich.text import Text
+
 def print_header():
-    """Print the application header."""
-    header_text = translate("header_title")
-    # Claude-style: Very subtle, generous whitespace
-    console.print()
-    console.print(f"[header]  {header_text}  [/header]", justify="center")
+    """Print the application header in a high-fidelity Claude-style dashboard."""
+    import os
+    from pathlib import Path
+    
+    # Get user and system info
+    try:
+        user_name = os.getlogin()
+    except:
+        user_name = "User"
+    
+    cwd = str(Path.cwd())
+    version = "v1.6.0" # Could pull from pyproject.toml but hardcoding for stability
+    model = config.get_model()
+    
+    # LEFT COLUMN: User Welcome & Logo
+    left_content = []
+    left_content.append(f"\n[bold]Welcome back {user_name}![/bold]\n")
+    # Minimal ASCII-ish Icon (Gemini/Agent themed)
+    left_content.append("[accent]      ▐▛███▜▌      [/accent]")
+    left_content.append("[accent]     ▝▜█████▛▘     [/accent]")
+    left_content.append("[accent]       ▘▘ ▝▝       [/accent]\n")
+    left_content.append(f"[info]{model} · API Usage Billing[/info]")
+    left_content.append(f"[info]{user_name}'s GAI Instance[/info]")
+    left_content.append(f"[accent]{cwd}[/accent]")
+    
+    left_panel = "\n".join(left_content)
+    
+    # RIGHT COLUMN: Tips & Activity
+    right_content = []
+    right_content.append("[bold info]Tips for getting started[/bold info]")
+    right_content.append("[info]Type /model to switch between Gemini models.[/info]")
+    right_content.append("[info]Use @path/to/file to add context to any request.[/info]")
+    right_content.append("\n[info]───────────────────────────────────────────────[/info]")
+    right_content.append("[bold info]Recent activity[/bold info]")
+    right_content.append("[info]No recent activity detected.[/info]")
+    
+    right_panel = "\n".join(right_content)
+    
+    # SPLIT TABLE (No borders inside)
+    table = Table.grid(expand=True)
+    table.add_column(justify="center", ratio=1)
+    table.add_column(justify="left", ratio=1)
+    table.add_row(left_panel, Padding(right_panel, (1, 0, 0, 4)))
+    
+    # MAIN OUTER PANEL
+    console.print(Panel(
+        table,
+        title=f"[header] gai-ag {version} [/header]",
+        title_align="left",
+        border_style="border",
+        padding=(0, 2),
+        expand=True
+    ))
     console.print()
 
 def print_welcome():
     """Print a welcome message for first-time users."""
     print_header()
-    console.print(f"[info]{translate('welcome')}[/info]", justify="center")
-    console.print(f"[accent]{translate('api_key_check')}[/accent]\n", justify="center")
+    # console.print(f"  [info]{translate('welcome')}[/info]", justify="center")
+    # console.print(f"  [accent]{translate('api_key_check')}[/accent]\n", justify="center")
 
 def print_error(message: str):
-    """Print a styled error message."""
-    # Minimal: 2 space indent, error color
-    console.print(f"  [error]✖ {message}[/error]")
+    """Print a styled error message with the Claude-style icon."""
+    console.print(f"  [error]⎿  {message}[/error]")
 
 def print_success(message: str):
-    """Print a styled success message."""
-    # Minimal: 2 space indent, success color
-    console.print(f"  [success]✔ {message}[/success]")
+    """Print a styled success message with the Claude-style icon."""
+    console.print(f"  [success]⎿  {message}[/success]")
 
 def print_system(message: str):
-    """Print a muted system message."""
-    # Minimal: 2 space indent, accent color, subtle arrow
-    console.print(f"  [accent]› {message}[/accent]")
+    """Print a muted system message with the Claude-style icon."""
+    console.print(f"  [accent]⎿  {message}[/accent]")
 
 def print_plan(plan: dict):
-    """Display the proposed agent plan."""
+    """Display the proposed agent plan with a structured boxed layout."""
     console.print()
-    if plan.get("reasoning"):
-        console.print(Padding(f"[info]Reasoning: {plan.get('reasoning')}[/info]", (0, 0, 1, 2)))
-        
-    console.print(f"  [ai]{translate('plan_title')}[/ai] {plan.get('plan', 'No description')}")
     
-    # Minimal clean table
-    table = Table(show_header=True, header_style="accent", border_style="accent", box=box.SIMPLE_HEAD, padding=(0, 2))
-    table.add_column("Action", style="bold")
-    table.add_column("File")
+    plan_elements = []
+    
+    if plan.get("reasoning"):
+        plan_elements.append(f"[info]{plan.get('reasoning')}[/info]\n")
+        
+    plan_elements.append(f"[ai]{translate('plan_title')}[/ai] {plan.get('plan', 'No description')}\n")
+    
+    # Action table
+    table = Table(
+        show_header=True, 
+        header_style="accent", 
+        border_style="border", 
+        box=box.ROUNDED, 
+        padding=(0, 1),
+        expand=True
+    )
+    table.add_column("Action", style="bold", width=12)
+    table.add_column("Path")
     
     for action in plan.get("actions", []):
         act_type = action.get("action", "unknown").lower()
@@ -106,70 +166,102 @@ def print_plan(plan: dict):
         
         style = f"action.{act_type}" if act_type in ["create", "write", "replace", "append"] else "ai"
         if act_type == "delete":
-            style = "error" # Red for delete
+            style = "error"
         elif act_type in ("move", "rename"):
-            style = "warning" # Yellow for move
+            style = "warning"
         table.add_row(f"[{style}]{act_type.upper()}[/{style}]", path)
-        
-    # Indent the table
-    console.print(Padding(table, (0, 0, 0, 2)))
     
-    # NEW: Show code previews
+    plan_elements.append(table)
+    
+    # Layout everything in a main plan panel
+    console.print(Panel(
+        *plan_elements,
+        title="[header] Proposed Plan [/header]",
+        border_style="accent",
+        padding=(1, 2)
+    ))
+
+    # CodePreviews in their own panels
     for action in plan.get("actions", []):
         act_type = action.get("action", "unknown").lower()
         path = action.get("path", "unknown")
         content = action.get("content", "")
         
         if content and act_type in ["create", "write", "replace", "append"]:
-            console.print(f"\n  [accent]📄 {path}[/accent]")
-            # Try to guess lexer from suffix
             ext = path.split('.')[-1] if '.' in path else 'txt'
             syntax = Syntax(content, ext, theme="monokai", line_numbers=True, word_wrap=True)
-            console.print(Padding(syntax, (0, 0, 1, 4)))
+            console.print(Panel(
+                syntax,
+                title=f"[accent] {path} [/accent]",
+                border_style="border",
+                padding=(0, 1)
+            ))
     
     console.print()
 
 def confirm_plan(message: str = None) -> bool:
-    """Ask for user confirmation."""
+    """Ask for user confirmation in a distinctive style."""
     if message is None:
          message = translate('confirm_apply')
     console.print()
-    return Confirm.ask(f"  [warning]{message}[/warning]")
+    return Confirm.ask(f"  [warning]⚡ {message}[/warning]")
 
 def print_message(sender: str, content: str, style: str = "white"):
     """
-    Print a chat message in a clean conversation style.
+    Print a chat message in a clean conversation style with Claude-like panels.
     """
-    # Spacing before message
-    console.print()
-    
     if sender.lower() in ("you", "user"):
-        # We generally don't print user messages anymore (prompt handles it),
-        # but if we do (e.g. history), keep it minimal.
-        sender_style = "user"
-        console.print(f"[{sender_style}]User[/{sender_style}]")
-        console.print(Padding(f"[{sender_style}]{content}[/{sender_style}]", (0, 0, 0, 2)))
+        # Minimal for user
+        console.print()
+        console.print(f"  [user]You[/user]")
+        console.print(Padding(content, (0, 0, 0, 4)))
         
     elif sender.lower() == "gemini":
-        sender_style = "ai"
-        # Claude-like: Label is just "Gemini" with the theme color
-        console.print(f"[{sender_style}]Gemini[/{sender_style}]")
-        
-        # AI content: Standard markdown rendering, slight indent
+        console.print()
+        # Boxed AI response
         md = Markdown(content)
-        console.print(Padding(md, (0, 0, 0, 2)))
-        
+        console.print(Panel(
+            md,
+            title="[ai] Gemini [/ai]",
+            title_align="left",
+            border_style="ai",
+            padding=(1, 2),
+            subtitle=f"[dim]Powered by {config.get_model()}[/dim]",
+            subtitle_align="right"
+        ))
     else:
         # System/Agent messages
-        sender_style = "accent"
-        console.print(f"[{sender_style}]{sender}[/{sender_style}]")
-        console.print(Padding(f"[info]{content}[/info]", (0, 0, 0, 2)))
+        console.print()
+        console.print(Panel(
+            f"[info]{content}[/info]",
+            title=f"[accent] {sender} [/accent]",
+            border_style="accent",
+            padding=(0, 2)
+        ))
 
-    # Add trailing spacing for breathing room before next prompt
     console.print()
 
 def create_spinner(message: str = None):
-    """Create a status spinner."""
+    """Create a status spinner with a clean look."""
     if message is None:
         message = translate("thinking")
-    return console.status(f"[accent]{message}[/accent]", spinner="dots")
+    return console.status(f"  [accent]{message}[/accent]", spinner="dots")
+
+def print_footer():
+    """Print the application footer with helpful shortcuts."""
+    footer_content = [
+        ("! for bash mode", "double tap esc to clear input"),
+        ("/ for commands", "shift + tab to auto-accept edits"),
+        ("@ for file paths", "ctrl + o for verbose output"),
+        ("& for background", "ctrl + t to show todos")
+    ]
+    
+    table = Table.grid(expand=True, padding=(0, 4))
+    table.add_column(justify="left")
+    table.add_column(justify="left")
+    
+    for left, right in footer_content:
+        table.add_row(f"[info]{left}[/info]", f"[info]{right}[/info]")
+    
+    console.print(Padding(table, (0, 0, 0, 4)))
+    console.print("[dim]────────────────────────────────────────────────────────────────────────────────[/dim]")

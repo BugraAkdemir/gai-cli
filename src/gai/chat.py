@@ -142,13 +142,19 @@ def handle_command(command: str) -> bool:
             return True
         
         # Interactive selection
-        ui.console.print()
-        ui.console.print("[accent]═══ Available Gemini Models ═══[/accent]", justify="center")
-        ui.console.print()
-        
         # Use Rich Table for better display
         from rich.table import Table
-        table = Table(show_header=True, header_style="accent", border_style="accent", show_lines=True)
+        from rich.panel import Panel
+        from rich import box as rich_box
+        
+        table = Table(
+            show_header=True, 
+            header_style="accent", 
+            border_style="border", 
+            box=rich_box.ROUNDED, 
+            show_lines=True,
+            expand=True
+        )
         table.add_column("#", style="dim", width=3)
         table.add_column("Model", style="bold")
         table.add_column("Speed", justify="center")
@@ -169,9 +175,13 @@ def handle_command(command: str) -> bool:
                 model["pricing"]
             )
         
-        ui.console.print(table)
-        ui.console.print()
-        ui.console.print("[dim]Current model marked with ›[/dim]")
+        ui.console.print(Panel(
+            table,
+            title="[header] Available Gemini Models [/header]",
+            subtitle="[dim]Current model marked with ›[/dim]",
+            border_style="accent",
+            padding=(1, 2)
+        ))
         ui.console.print()
         
         # Prompt for selection
@@ -247,6 +257,7 @@ def start_chat_session():
     
     ui.print_header()
     ui.print_system(ui.translate("help_hint"))
+    ui.print_footer()
     
     # Load persistent history
     agent_history = config.load_history()
@@ -256,7 +267,7 @@ def start_chat_session():
     while True:
         try:
             # Read input
-            user_input = pt_session.prompt("> ")
+            user_input = pt_session.prompt("❯ ")
             cleaned_input = user_input.strip()
             
             if not cleaned_input:
