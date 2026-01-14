@@ -214,8 +214,9 @@ def handle_command(command: str) -> bool:
         
         
     elif cmd == "/newchat":
-        config.clear_history()
-        ui.print_success("History cleared. Starting a new session.")
+        mode_str = "agent" if AGENT_MODE else "chat"
+        config.clear_history(mode=mode_str)
+        ui.print_success(f"History cleared for {mode_str} mode. Starting a new session.")
         return "RESET"
         
     elif cmd == "/info":
@@ -246,7 +247,7 @@ def handle_command(command: str) -> bool:
             ui.print_system("Conversation mode active. I will focus on chatting.")
         else:
             ui.print_system("Agent mode active. I can help with file operations.")
-        return True
+        return "SWITCH_MODE"
         
     else:
         ui.print_system(ui.translate("unknown_command"))
@@ -274,10 +275,11 @@ def start_chat_session():
     ui.print_system(ui.translate("help_hint"))
     ui.print_footer()
     
-    # Load persistent history
-    agent_history = config.load_history()
-    if agent_history:
-        ui.print_system(f"Resuming previous session ({len(agent_history)} turns). Use /newchat to start fresh.")
+    # Load persistent history (Initial mode: Agent)
+    current_mode = "agent" if AGENT_MODE else "chat"
+    current_history = config.load_history(mode=current_mode)
+    if current_history:
+        ui.print_system(f"Resuming previous {current_mode} session ({len(current_history)} turns). Use /newchat to start fresh.")
 
     while True:
         try:
@@ -292,7 +294,23 @@ def start_chat_session():
             if cleaned_input.startswith("/"):
                 cmd_result = handle_command(cleaned_input)
                 if cmd_result == "RESET":
-                    agent_history = []
+                    current_history = []
+                    continue
+                if cmd_result == "SWITCH_MODE":
+                    # Save current history before switching
+                    old_mode = "chat" if AGENT_MODE else "agent" # AGENT_MODE was already toggled in handle_command
+                    config.save_history(current_history, mode=old_mode)
+                    
+                    # Switch to new mode history
+                    new_mode = "agent" if AGENT_MODE else "chat"
+                    current_history = config.load_history(mode=new_mode)
+                    
+                    # Refresh UI Header
+                    ui.print_header(mode=new_mode.capitalize())
+                    if current_history:
+                        ui.print_system(f"Resumed {new_mode} session ({len(current_history)} turns).")
+                    else:
+                        ui.print_system(f"Started fresh {new_mode} session.")
                     continue
                 if not cmd_result:
                     break
@@ -305,12 +323,12 @@ def start_chat_session():
             # --- CHAT MODE (Simple Conversation) ---
             if not AGENT_MODE:
                 with ui.create_spinner(ui.translate("thinking")):
-                    response = gemini.generate_response(cleaned_input, history=agent_history)
+                    response = gemini.generate_response(cleaned_input, history=current_history)
                 
                 ui.print_message("Gemini", response)
-                agent_history.append({"role": "user", "content": cleaned_input})
-                agent_history.append({"role": "model", "content": response})
-                config.save_history(agent_history)
+                current_history.append({"role": "user", "content": cleaned_input})
+                current_history.append({"role": "model", "content": response})
+                config.save_history(current_history, mode="chat")
                 continue
 
             # --- AGENT MODE (Autonomous Planning & Execution) ---
@@ -320,7 +338,7 @@ def start_chat_session():
             while True:
                 try:
                     with ui.create_spinner(ui.translate("agent_planning")):
-                        plan = agent.generate_plan(current_request, history=agent_history)
+                        plan = agent.generate_plan(current_request, history=current_history)
                 except gemini.InvalidAPIKeyError as e:
                     ui.print_error(f"Authentication Error: {str(e)}")
                     ui.print_system("Use /apikey to update your API key if needed.")
@@ -365,9 +383,9 @@ def start_chat_session():
                     
                     # Save state/history after success
                     summary = f"Applied plan: {plan.get('plan', 'No summary')}"
-                    agent_history.append({"role": "user", "content": current_request})
-                    agent_history.append({"role": "assistant", "content": summary})
-                    config.save_history(agent_history)
+                    current_history.append({"role": "user", "content": current_request})
+                    current_history.append({"role": "assistant", "content": summary})
+                    config.save_history(current_history, mode="agent")
                     
                     # Update project brain
                     config.save_state({

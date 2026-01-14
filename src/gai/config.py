@@ -16,17 +16,20 @@ DEFAULT_MODEL = "gemini-2.0-flash-exp"
 CONFIG_DIR = GLOBAL_CONFIG_DIR # For mocking in tests
 CONFIG_FILE = GLOBAL_CONFIG_FILE # For mocking in tests
 
-def get_project_dir(root: Optional[Path] = None) -> Path:
-    """Get the local .gai directory. Creates it if missing."""
+def get_project_dir(root: Optional[Path] = None, subfolder: Optional[str] = None) -> Path:
+    """Get the local .gai directory or a subfolder within it."""
     base = root if root else Path.cwd()
     pdir = base / ".gai"
+    if subfolder:
+        pdir = pdir / subfolder
     if not pdir.exists():
         pdir.mkdir(parents=True, exist_ok=True)
     return pdir
 
-def get_history_file(root: Optional[Path] = None) -> Path:
-    """Get the path to the project-specific history file."""
-    return get_project_dir(root) / "history.json"
+def get_history_file(root: Optional[Path] = None, mode: str = "agent") -> Path:
+    """Get the path to the mode-specific history file."""
+    subfolder = "chat" if mode == "chat" else None
+    return get_project_dir(root, subfolder=subfolder) / "history.json"
 
 def get_state_file(root: Optional[Path] = None) -> Path:
     """Get the path to the project-specific state file."""
@@ -115,9 +118,9 @@ def save_mode(mode: str) -> None:
     config["mode"] = mode
     _save_config(config)
 
-def load_history(root: Optional[Path] = None) -> List[Dict[str, str]]:
+def load_history(root: Optional[Path] = None, mode: str = "agent") -> List[Dict[str, str]]:
     """Load session history from the local project .gai directory."""
-    hfile = get_history_file(root)
+    hfile = get_history_file(root, mode=mode)
     if not hfile.exists():
         return []
     try:
@@ -125,14 +128,14 @@ def load_history(root: Optional[Path] = None) -> List[Dict[str, str]]:
     except Exception:
         return []
 
-def save_history(history: List[Dict[str, str]], root: Optional[Path] = None):
+def save_history(history: List[Dict[str, str]], root: Optional[Path] = None, mode: str = "agent"):
     """Save session history to the local project .gai directory."""
-    hfile = get_history_file(root)
+    hfile = get_history_file(root, mode=mode)
     hfile.write_text(json.dumps(history, indent=2), encoding="utf-8")
 
-def clear_history(root: Optional[Path] = None):
+def clear_history(root: Optional[Path] = None, mode: str = "agent"):
     """Clear session history for the current project."""
-    hfile = get_history_file(root)
+    hfile = get_history_file(root, mode=mode)
     if hfile.exists():
         hfile.unlink()
 
