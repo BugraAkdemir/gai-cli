@@ -63,7 +63,7 @@ from rich.columns import Columns
 from rich.align import Align
 from rich.text import Text
 
-def print_header():
+def print_header(mode: str = "Agent"):
     """Print the application header in a high-fidelity Claude-style dashboard."""
     import os
     from pathlib import Path
@@ -75,16 +75,19 @@ def print_header():
         user_name = "User"
     
     cwd = str(Path.cwd())
-    version = "v1.6.0" # Could pull from pyproject.toml but hardcoding for stability
+    version = "v1.6.0" 
     model = config.get_model()
+    
+    mode_display = f"[success]● {mode} Mode[/success]" if mode == "Agent" else "[warning]○ Chat Mode[/warning]"
     
     # LEFT COLUMN: User Welcome & Logo
     left_content = []
     left_content.append(f"\n[bold]Welcome back {user_name}![/bold]\n")
-    # Minimal ASCII-ish Icon (Gemini/Agent themed)
+    # Minimal ASCII-ish Icon
     left_content.append("[accent]      ▐▛███▜▌      [/accent]")
     left_content.append("[accent]     ▝▜█████▛▘     [/accent]")
     left_content.append("[accent]       ▘▘ ▝▝       [/accent]\n")
+    left_content.append(f"      {mode_display}\n")
     left_content.append(f"[info]{model} · API Usage Billing[/info]")
     left_content.append(f"[info]{user_name}'s GAI Instance[/info]")
     left_content.append(f"[accent]{cwd}[/accent]")

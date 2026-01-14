@@ -14,6 +14,9 @@ AGENT_KEYWORDS = {
     "ekle", "oluştur", "yaz", "güncelle", "değiştir", "düzelt", "sil", "taşı"
 }
 
+# Mode state
+AGENT_MODE = True
+
 def get_test_command() -> List[str]:
     """Detect project type and return the appropriate test command."""
     cwd = Path(".")
@@ -234,6 +237,17 @@ def handle_command(command: str) -> bool:
             ui.print_error("info.txt not found. Please ensure it exists in the package directory.")
         return True
         
+    elif cmd == "/chat":
+        global AGENT_MODE
+        AGENT_MODE = not AGENT_MODE
+        status = "ENABLED" if AGENT_MODE else "DISABLED"
+        ui.print_success(f"Agent mode is now {status}.")
+        if not AGENT_MODE:
+            ui.print_system("Conversation mode active. I will focus on chatting.")
+        else:
+            ui.print_system("Agent mode active. I can help with file operations.")
+        return True
+        
     else:
         ui.print_system(ui.translate("unknown_command"))
         return True
@@ -255,7 +269,8 @@ def start_chat_session():
     
     pt_session = PromptSession(style=style)
     
-    ui.print_header()
+    current_mode = "Agent" if AGENT_MODE else "Chat"
+    ui.print_header(mode=current_mode)
     ui.print_system(ui.translate("help_hint"))
     ui.print_footer()
     
@@ -287,7 +302,18 @@ def start_chat_session():
                 ui.print_system(ui.translate("goodbye"))
                 break
 
-            # Unified Agent loop
+            # --- CHAT MODE (Simple Conversation) ---
+            if not AGENT_MODE:
+                with ui.create_spinner(ui.translate("thinking")):
+                    response = gemini.generate_response(cleaned_input, history=agent_history)
+                
+                ui.print_message("Gemini", response)
+                agent_history.append({"role": "user", "content": cleaned_input})
+                agent_history.append({"role": "model", "content": response})
+                config.save_history(agent_history)
+                continue
+
+            # --- AGENT MODE (Autonomous Planning & Execution) ---
             ui.print_system(ui.translate("agent_active"))
             current_request = cleaned_input
             
