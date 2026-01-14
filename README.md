@@ -1,6 +1,6 @@
-# gai-cli (Gemini AI CLI)
+# gai-ag (Gemini Autonomous Agent)
 
-`gai-cli`, Google Gemini API'sini terminale taşıyan, profesyonel, hızlı ve akıllı bir komut satırı aracıdır. Hem doğrudan soru sorabilir hem de projeniz üzerinde otomatik değişiklikler yapabilen gelişmiş bir "Agent" moduna sahiptir.
+`gai-ag`, Google Gemini API'sini terminale taşıyan, profesyonel, hızlı ve akıllı bir komut satırı aracıdır. Hem doğrudan soru sorabilir hem de projeniz üzerinde otomatik değişiklikler yapabilen gelişmiş bir \"Agent\" moduna sahiptir.
 - **Otonom Agent Modu**: Hataları kendi kendine düzeltir, testleri koşturur ve çözüm üretir.
 - **Proje Hafızası (Brain)**: Her projede kendi `.gai/` klasörünü oluşturur; geçmişi, durumu ve hataları orada saklar.
 - **Zeki Tarama**: Token tasarrufu için proje yapısını önbelleğe alır ve kritik dosyaları önceliklendirir.
@@ -17,6 +17,12 @@
 
 ## 🚀 Kurulum
 
+### PyPI'den (En Kolay)
+```bash
+pip install gai-ag
+```
+
+### Geliştirme İçin
 1. Depoyu klonlayın:
    ```bash
    git clone https://github.com/bugraakdemir/gai-cli.git
@@ -28,20 +34,21 @@
    pip install -e .
    ```
 
-3. Kurulumu tamamlayın:
-   ```bash
-   gai setup
-   ```
-
 ## 🛠️ Kullanım
+
+> **Not**: Terminal'den hem `gai` hem `gai-ag` komutu çalışır!
 
 ### Tek Seferlik Soru
 ```bash
 gai "Python'da liste üreteçleri (list comprehensions) nedir?"
+# veya
+gai-ag "Python'da liste üreteçleri nedir?"
 ```
 
 ### İnteraktif Mod (Sohbet & Agent)
-Sadece `gai` yazarak interaktif modu başlatın:
+Sadece `gai` veya `gai-ag` yazarak interaktif modu başlatın:
 ```bash
 gai
+# veya
+gai-ag
 ```
