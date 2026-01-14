@@ -13,6 +13,9 @@ GLOBAL_CONFIG_DIR = Path.home() / ".gai"
 GLOBAL_CONFIG_FILE = GLOBAL_CONFIG_DIR / "config.json"
 DEFAULT_MODEL = "gemini-2.0-flash-exp"
 
+CONFIG_DIR = GLOBAL_CONFIG_DIR # For mocking in tests
+CONFIG_FILE = GLOBAL_CONFIG_FILE # For mocking in tests
+
 def get_project_dir(root: Optional[Path] = None) -> Path:
     """Get the local .gai directory. Creates it if missing."""
     base = root if root else Path.cwd()
@@ -31,17 +34,20 @@ def get_state_file(root: Optional[Path] = None) -> Path:
 
 def _load_config() -> Dict[str, Any]:
     """Load global configuration from disk."""
-    if not GLOBAL_CONFIG_FILE.exists():
+    config_file = globals().get('CONFIG_FILE', GLOBAL_CONFIG_FILE)
+    if not config_file.exists():
         return {}
     try:
-        return json.loads(GLOBAL_CONFIG_FILE.read_text(encoding="utf-8"))
+        return json.loads(config_file.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return {}
 
 def _save_config(config: Dict[str, Any]):
     """Save global configuration to disk."""
-    GLOBAL_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    GLOBAL_CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    config_dir = globals().get('CONFIG_DIR', GLOBAL_CONFIG_DIR)
+    config_file = globals().get('CONFIG_FILE', GLOBAL_CONFIG_FILE)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    config_file.write_text(json.dumps(config, indent=2), encoding="utf-8")
 
 def get_api_key() -> Optional[str]:
     """
@@ -70,6 +76,12 @@ def get_model() -> str:
     """Get the configured model name or default."""
     config = _load_config()
     return config.get("model", DEFAULT_MODEL)
+
+def save_model(model: str):
+    """Save the model preference."""
+    config = _load_config()
+    config["model"] = model
+    _save_config(config)
 
 def get_language() -> str:
     """Get the configured language code."""

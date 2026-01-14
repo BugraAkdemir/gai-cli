@@ -50,14 +50,17 @@ def reload_ui():
     global console
     console = get_console()
 
-def _t(key: str) -> str:
+def translate(key: str) -> str:
     """Get localized string."""
     lang = config.get_language()
     return languages.get_string(key, lang)
 
+# Shortcut
+t = translate
+
 def print_header():
     """Print the application header."""
-    header_text = _t("header_title")
+    header_text = translate("header_title")
     # Claude-style: Very subtle, generous whitespace
     console.print()
     console.print(f"[header]  {header_text}  [/header]", justify="center")
@@ -66,8 +69,8 @@ def print_header():
 def print_welcome():
     """Print a welcome message for first-time users."""
     print_header()
-    console.print(f"[info]{_t('welcome')}[/info]", justify="center")
-    console.print(f"[accent]{_t('api_key_check')}[/accent]\n", justify="center")
+    console.print(f"[info]{translate('welcome')}[/info]", justify="center")
+    console.print(f"[accent]{translate('api_key_check')}[/accent]\n", justify="center")
 
 def print_error(message: str):
     """Print a styled error message."""
@@ -90,7 +93,7 @@ def print_plan(plan: dict):
     if plan.get("reasoning"):
         console.print(Padding(f"[info]Reasoning: {plan.get('reasoning')}[/info]", (0, 0, 1, 2)))
         
-    console.print(f"  [ai]{_t('plan_title')}[/ai] {plan.get('plan', 'No description')}")
+    console.print(f"  [ai]{translate('plan_title')}[/ai] {plan.get('plan', 'No description')}")
     
     # Minimal clean table
     table = Table(show_header=True, header_style="accent", border_style="accent", box=box.SIMPLE_HEAD, padding=(0, 2))
@@ -126,10 +129,12 @@ def print_plan(plan: dict):
     
     console.print()
 
-def confirm_plan() -> bool:
+def confirm_plan(message: str = None) -> bool:
     """Ask for user confirmation."""
+    if message is None:
+         message = translate('confirm_apply')
     console.print()
-    return Confirm.ask(f"  [warning]{_t('confirm_apply')}[/warning]")
+    return Confirm.ask(f"  [warning]{message}[/warning]")
 
 def print_message(sender: str, content: str, style: str = "white"):
     """
@@ -166,5 +171,5 @@ def print_message(sender: str, content: str, style: str = "white"):
 def create_spinner(message: str = None):
     """Create a status spinner."""
     if message is None:
-        message = _t("thinking")
+        message = translate("thinking")
     return console.status(f"[accent]{message}[/accent]", spinner="dots")

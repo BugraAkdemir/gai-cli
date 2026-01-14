@@ -1,0 +1,28 @@
+Proje, Google Gemini API'sini terminale getiren `gai-cli` adlı profesyonel, hızlı ve akıllı bir komut satırı aracıdır. Otomatik değişiklikler yapabilen, hataları düzeltebilen, testleri çalıştırabilen ve çözümler üretebilen gelişmiş bir 'Agent' moduna sahiptir.
+
+Dosya yapısının amacı:
+- `.gitignore`: Git'in görmezden geleceği dosyaları belirtir.
+- `pyproject.toml`: Proje yapılandırması (bağımlılıklar, meta veriler).
+- `README.md`: Projenin açıklaması, kurulumu ve kullanımı.
+- `src/gai/agent.py`: Agent mantığı (niyet tespiti, plan oluşturma).
+- `src/gai/chat.py`: İnteraktif sohbet oturumu.
+- `src/gai/cli.py`: Komut satırı arayüzü.
+- `src/gai/completer.py`: @ ile dosya tamamlama.
+- `src/gai/config.py`: Yapılandırma yönetimi (API anahtarı, ayarlar).
+- `src/gai/context.py`: @ ile dosya ve dizin içeriğini yükleme.
+- `src/gai/fs.py`: Güvenli dosya işlemleri.
+- `src/gai/gemini.py`: Gemini API entegrasyonu.
+- `src/gai/languages.py`: Çoklu dil desteği.
+- `src/gai/scanner.py`: Proje yapısını tarama.
+- `src/gai/themes.py`: Tema tanımlamaları.
+- `src/gai/ui.py`: Kullanıcı arayüzü.
+- `src/gai/__init__.py`: Paket başlatma.
+- `tests/test_agent_lifecycle.py`: Agent yaşam döngüsü testleri.
+- `tests/test_agent_robustness.py`: Agent sağlamlık testleri.
+- `tests/test_config.py`: Yapılandırma testleri.
+- `tests/test_fs.py`: Dosya sistemi testleri.
+- `tests/test_gemini.py`: Gemini API testleri.
+- `tests/__init__.py`: Test paketi başlatma.
+- `src/gai_cli.egg-info`: Paket meta verileri.
+
+`gai-cli`, Google Gemini API'si ile etkileşim için güçlü ve kullanıcı dostu bir komut satırı arayüzü sağlamayı amaçlar; otomasyon, güvenlik ve özelleştirmeye odaklanır.

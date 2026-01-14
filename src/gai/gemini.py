@@ -132,9 +132,20 @@ def generate_response(
             raise GeminiError("Received empty response from Gemini API")
             
     except Exception as e:
-        msg = str(e)
-        if "403" in msg or "401" in msg or "PERMISSION_DENIED" in msg or "unauthenticated" in msg.lower():
-            raise InvalidAPIKeyError("Invalid API Key.")
+        msg = str(e).lower()
+        
+        # Check for quota/rate limit errors first
+        if "quota" in msg or "rate limit" in msg or "resource_exhausted" in msg:
+            raise GeminiError(f"API Quota/Rate Limit Exceeded: {str(e)}\n\nTry switching models with /model command or wait a few minutes.")
+        
+        # Only treat actual authentication failures as invalid API key
+        # Be very specific to avoid false positives from rate limiting, quota, etc.
+        if "api_key_invalid" in msg or ("403" in msg and "api key" in msg):
+            raise InvalidAPIKeyError(f"Invalid API Key: {str(e)}")
+        
+        # Catch other auth-related but not necessarily key issues
+        if "401" in msg or "unauthenticated" in msg:
+            raise InvalidAPIKeyError(f"Authentication failed: {str(e)}")
             
         if isinstance(e, (APIKeyMissingError, GeminiError)):
             raise

@@ -1,0 +1,29 @@
+The project is named `gai-cli` and aims to be a professional, fast, and intelligent command-line tool that brings the Google Gemini API to the terminal. It has an advanced "Agent" mode that can make automatic changes to a project, including self-correcting errors, running tests, and producing solutions.
+
+Here's a breakdown of the purpose of each file:
+
+- `.gitignore`: Specifies intentionally untracked files that Git should ignore.
+- `pyproject.toml`: Configuration file for Python projects, specifying build system requirements and project metadata.
+- `README.md`: Provides an overview of the project, including its features, installation instructions, and usage examples.
+- `src/gai/agent.py`: Contains the agent logic for the CLI, handling intent detection, plan generation, and prompt engineering.
+- `src/gai/chat.py`: Implements the interactive chat session functionality, including handling commands and managing the chat loop.
+- `src/gai/cli.py`: Defines the command-line interface using the `typer` library, handling user input and orchestrating the application flow.
+- `src/gai/completer.py`: Provides autocompletion functionality for file paths when using the `@` context injection feature.
+- `src/gai/config.py`: Manages the application's configuration, including loading and saving settings, retrieving API keys, and managing project-specific state.
+- `src/gai/context.py`: Handles context loading from files and directories specified with the `@` prefix in user prompts.
+- `src/gai/fs.py`: Implements safe filesystem operations, ensuring that all file actions are restricted to the current working directory.
+- `src/gai/gemini.py`: Integrates with the Gemini API, handling authentication and sending prompts to generate responses.
+- `src/gai/languages.py`: Provides localization support for the CLI, allowing it to be translated into different languages.
+- `src/gai/scanner.py`: Scans the project directory to build a context string for the agent, including file structure and contents.
+- `src/gai/themes.py`: Defines the color themes for the CLI, allowing users to customize the look and feel.
+- `src/gai/ui.py`: Centralizes UI styling for the CLI, providing a consistent look and feel using the `rich` library.
+- `src/gai/__init__.py`: Initializes the `gai` package and defines the project version.
+- `tests/test_agent_lifecycle.py`: Tests the full lifecycle of the agent, including scanning, planning, applying actions, and verifying the results.
+- `tests/test_agent_robustness.py`: Contains robustness tests for the agent, ensuring that it can handle various inputs and edge cases.
+- `tests/test_config.py`: Tests the configuration management functionality.
+- `tests/test_fs.py`: Tests the safe filesystem operations.
+- `tests/test_gemini.py`: Tests the Gemini API integration.
+- `tests/__init__.py`: Initializes the `tests` package.
+- `src/gai_cli.egg-info`: Contains metadata about the installed package.
+
+The `gai-cli` project aims to provide a powerful and user-friendly command-line interface for interacting with the Google Gemini API, with a focus on automation, safety, and customization.

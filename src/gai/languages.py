@@ -24,6 +24,7 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "plan_failed": "Failed to generate a plan.",
         "plan_title": "Plan:",
         "confirm_apply": "Apply these changes?",
+        "verify_anyway": "No changes proposed. Run verification tests anyway?",
         "context_error": "Error loading context:",
         "gemini_error": "Gemini Error:",
         "unknown_command": "Unknown command.",
@@ -37,7 +38,11 @@ STRINGS: Dict[str, Dict[str, str]] = {
         - `/apikey`: Update API key
         - `/model`:  Show/Switch model
         - `/exit`:   Exit chat
-        """
+        """,
+        "model_current": "Current Model:",
+        "model_available": "Available Models:",
+        "model_switched": "Model switched to",
+        "quota_exceeded": "API Quota/Rate Limit Exceeded. Try /model to switch models or wait a few minutes."
     },
     "tr": {
         "header_title": "GAI · Gemini Terminali",
@@ -58,6 +63,7 @@ STRINGS: Dict[str, Dict[str, str]] = {
         "plan_failed": "Plan oluşturulamadı.",
         "plan_title": "Plan:",
         "confirm_apply": "Bu değişiklikler uygulansın mı?",
+        "verify_anyway": "Değişiklik önerilmedi. Yine de doğrulama testleri çalıştırılsın mı?",
         "context_error": "Bağlam yükleme hatası:",
         "gemini_error": "Gemini Hatası:",
         "unknown_command": "Bilinmeyen komut.",
@@ -71,7 +77,11 @@ STRINGS: Dict[str, Dict[str, str]] = {
         - `/apikey`: API anahtarını güncelle
         - `/model`:  Modeli Göster/Değiştir
         - `/exit`:   Çıkış
-        """
+        """,
+        "model_current": "Aktif Model:",
+        "model_available": "Kullanılabilir Modeller:",
+        "model_switched": "Model değiştirildi:",
+        "quota_exceeded": "API Kotası/Hız Limiti Aşıldı. /model komutu ile model değiştirebilir veya birkaç dakika bekleyebilirsiniz."
     }
 }
 

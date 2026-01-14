@@ -7,29 +7,12 @@ from gai.completer import FileContextCompleter
 from typing import List
 from pathlib import Path
 
+# Redundant keywords for intent detection (kept for documentation)
 AGENT_KEYWORDS = {
     "add", "create", "make", "write", "update", "modify", "change", "fix", 
     "refactor", "remove", "delete", "move", "rename", 
     "ekle", "oluştur", "yaz", "güncelle", "değiştir", "düzelt", "sil", "taşı"
 }
-
-def is_agent_task(text: str) -> bool:
-    """Check if the text looks like an agent task."""
-    text_lower = text.lower()
-    words = text_lower.split()
-    
-    # Check if ANY keyword is present as a full word
-    for kw in AGENT_KEYWORDS:
-        if kw in words:
-            return True
-            
-    # Substring matches for Turkish suffixes (e.g. 'ekle', 'eklesene')
-    turkish_triggers = ["yap", "oluştur", "ekle", "sil", "taşı", "düzelt"]
-    for trigger in turkish_triggers:
-        if trigger in text_lower and len(text_lower) < 50: # Limit length for safety
-             return True
-
-    return False
 
 def get_test_command() -> List[str]:
     """Detect project type and return the appropriate test command."""
@@ -63,12 +46,12 @@ def handle_command(command: str) -> bool:
     elif cmd == "/clear":
         ui.console.clear()
         ui.print_header()
-        ui.print_system(ui._t("help_hint"))
+        ui.print_system(ui.translate("help_hint"))
         return True
         
     elif cmd == "/help":
-        ui.print_system(ui._t("help_title"))
-        ui.print_system(ui._t("help_desc"))
+        ui.print_system(ui.translate("help_title"))
+        ui.print_system(ui.translate("help_desc"))
         ui.print_system("  /newchat - Clear history and start a new session")
         return True
         
@@ -104,13 +87,118 @@ def handle_command(command: str) -> bool:
          config.save_language(new_lang)
          # In a real app we might need to reload more stuff, but here mostly UI text
          ui.print_success(f"Language set to {new_lang}")
-         ui.print_system(ui._t("welcome")) # Verify switch
+         ui.print_system(ui.translate("welcome")) # Verify switch
          return True
     
+    
     elif cmd == "/model":
-        current = config.get_model()
-        ui.print_system(f"Current Model: {current}")
+        # Define available models with metadata
+        models = [
+            {
+                "name": "gemini-2.0-flash-exp",
+                "display": "Gemini 2.0 Flash (Experimental)",
+                "speed": "Fastest",
+                "context": "1M tokens",
+                "pricing": "Free tier available"
+            },
+            {
+                "name": "gemini-2.0-flash-lite",
+                "display": "Gemini 2.0 Flash Lite",
+                "speed": "Fastest",
+                "context": "1M tokens",
+                "pricing": "Free tier available"
+            },
+            {
+                "name": "gemini-1.5-flash",
+                "display": "Gemini 1.5 Flash",
+                "speed": "Fast",
+                "context": "1M tokens",
+                "pricing": "$0.075/$0.30 per 1M tokens"
+            },
+            {
+                "name": "gemini-1.5-pro",
+                "display": "Gemini 1.5 Pro",
+                "speed": "Moderate",
+                "context": "2M tokens",
+                "pricing": "$1.25/$5.00 per 1M tokens"
+            }
+        ]
+        
+        current_model = config.get_model()
+        
+        # If model name is provided, switch directly
+        if len(cmd_parts) >= 2:
+            new_model = cmd_parts[1]
+            model_names = [m["name"] for m in models]
+            
+            if new_model not in model_names:
+                ui.print_error(f"Unknown model: {new_model}")
+                ui.print_system("Available models: " + ", ".join(model_names))
+                return True
+            
+            config.save_model(new_model)
+            ui.print_success(f"Model set to {new_model}")
+            ui.print_system("New sessions will use this model.")
+            return True
+        
+        # Interactive selection
+        ui.console.print()
+        ui.console.print("[accent]═══ Available Gemini Models ═══[/accent]", justify="center")
+        ui.console.print()
+        
+        # Use Rich Table for better display
+        from rich.table import Table
+        table = Table(show_header=True, header_style="accent", border_style="accent", show_lines=True)
+        table.add_column("#", style="dim", width=3)
+        table.add_column("Model", style="bold")
+        table.add_column("Speed", justify="center")
+        table.add_column("Context Window", justify="center")
+        table.add_column("Pricing (Input/Output)", justify="right")
+        
+        for idx, model in enumerate(models, 1):
+            marker = "›" if model["name"] == current_model else " "
+            name_display = f"{marker} {model['display']}"
+            if model["name"] == current_model:
+                name_display = f"[success]{name_display}[/success]"
+            
+            table.add_row(
+                str(idx),
+                name_display,
+                model["speed"],
+                model["context"],
+                model["pricing"]
+            )
+        
+        ui.console.print(table)
+        ui.console.print()
+        ui.console.print("[dim]Current model marked with ›[/dim]")
+        ui.console.print()
+        
+        # Prompt for selection
+        try:
+            choice = ui.console.input("[accent]Select a model (1-{}) or press Enter to cancel:[/accent] ".format(len(models)))
+            
+            if not choice.strip():
+                ui.print_system("Cancelled.")
+                return True
+            
+            try:
+                choice_num = int(choice.strip())
+                if 1 <= choice_num <= len(models):
+                    selected_model = models[choice_num - 1]
+                    config.save_model(selected_model["name"])
+                    ui.print_success(f"Model set to {selected_model['display']}")
+                    ui.print_system("New sessions will use this model.")
+                else:
+                    ui.print_error("Invalid selection. Please choose a number from the list.")
+            except ValueError:
+                ui.print_error("Please enter a valid number.")
+        except KeyboardInterrupt:
+            ui.console.print()
+            ui.print_system("Cancelled.")
+        
         return True
+        
         
     elif cmd == "/newchat":
         config.clear_history()
@@ -118,7 +206,7 @@ def handle_command(command: str) -> bool:
         return "RESET"
         
     else:
-        ui.print_system(ui._t("unknown_command"))
+        ui.print_system(ui.translate("unknown_command"))
         return True
 
 
@@ -139,7 +227,7 @@ def start_chat_session():
     pt_session = PromptSession(style=style)
     
     ui.print_header()
-    ui.print_system(ui._t("help_hint"))
+    ui.print_system(ui.translate("help_hint"))
     
     # Load persistent history
     agent_history = config.load_history()
@@ -166,126 +254,150 @@ def start_chat_session():
                 continue
                 
             if cleaned_input.lower() in ("exit", "quit"):
-                ui.print_system(ui._t("goodbye"))
+                ui.print_system(ui.translate("goodbye"))
                 break
 
-            # Check Intent: Agent vs Chat
-            if is_agent_task(cleaned_input):
-                 ui.print_system(ui._t("agent_active"))
-                 current_request = cleaned_input
-                 
-                 while True:
-                     # Generate Plan
-                     with ui.create_spinner(ui._t("agent_planning")):
-                         plan = agent.generate_plan(current_request, history=agent_history)
-                     
-                     if not plan:
-                         ui.print_error(ui._t("plan_failed"))
-                         break
-
-                     # Show Plan
-                     ui.print_plan(plan)
-                     
-                     if not plan.get("actions"):
-                         ui.print_system(ui._t("no_actions"))
-                         break
-
-                     # Ask Confirmation
-                     if ui.confirm_plan():
-                         # Execute
-                         ui.print_system(ui._t("applying_changes"))
-                         results = fs.apply_actions(plan["actions"])
-                         
-                         success = True
-                         for res in results:
-                             if res["status"] == "success":
-                                 ui.print_success(f"✔ {res['message']}")
-                             else:
-                                 ui.print_error(f"✖ {res['message']}")
-                                 success = False
-                         
-                         # Save state/history after success (only the user request and a summary)
-                         summary = f"Applied plan: {plan.get('plan', 'No summary')}"
-                         agent_history.append({"role": "user", "content": current_request})
-                         agent_history.append({"role": "assistant", "content": summary})
-                         config.save_history(agent_history)
-                         
-                         # Update project brain
-                         config.save_state({
-                             "last_task": current_request,
-                             "status": "applying",
-                             "errors": []
-                         })
-
-                         # Automaton: Run Tests and Self-Correct
-                         if success:
-                             ui.print_system("Running verification tests...")
-                             import subprocess
-                             try:
-                                 test_cmd = get_test_command()
-                                 ui.print_system(f"Executing: {' '.join(test_cmd)}")
-                                 
-                                 test_result = subprocess.run(
-                                     test_cmd,
-                                     capture_output=True, 
-                                     text=True, 
-                                     cwd=".",
-                                     encoding="utf-8",
-                                     errors="replace",
-                                     shell=True if sys.platform == "win32" else False
-                                 )
-                                 
-                                 stdout = test_result.stdout or ""
-                                 stderr = test_result.stderr or ""
-                                 
-                                 if test_result.returncode == 0:
-                                     ui.print_success("Tests passed! Task completed.")
-                                     config.save_state({
-                                         "last_task": current_request,
-                                         "status": "completed",
-                                         "errors": []
-                                     }, root=Path("."))
-                                     break
-                                 else:
-                                     ui.print_error("Tests failed. Attempting self-correction...")
-                                     error_log = stdout + "\n" + stderr
-                                     config.save_state({
-                                         "last_task": current_request,
-                                         "status": "failed",
-                                         "errors": [line for line in error_log.splitlines() if "error" in line.lower()][:5]
-                                     }, root=Path("."))
-                                     current_request = f"The previous changes caused test failures:\n\n{error_log}\n\nPlease fix the errors."
-                                     continue
-                             except Exception as e:
-                                 ui.print_system(f"Auto-test skipped or failed: {e}")
-                                 break
-                         else:
-                             break
-                     else:
-                         ui.print_system(ui._t("cancelled"))
-                         break
-            else:
-                # Normal Chat Flow
-                # Process context inclusions
+            # Unified Agent loop
+            ui.print_system(ui.translate("agent_active"))
+            current_request = cleaned_input
+            
+            while True:
                 try:
-                    final_prompt = context.process_prompt(cleaned_input)
+                    with ui.create_spinner(ui.translate("agent_planning")):
+                        plan = agent.generate_plan(current_request, history=agent_history)
+                except gemini.InvalidAPIKeyError as e:
+                    ui.print_error(f"Authentication Error: {str(e)}")
+                    ui.print_system("Use /apikey to update your API key if needed.")
+                    break
+                except gemini.GeminiError as e:
+                    ui.print_error(f"API Error: {str(e)}")
+                    ui.print_system("There may be a temporary issue with the Gemini API. Please try again.")
+                    break
                 except Exception as e:
-                    ui.print_error(f"{ui._t('context_error')} {e}")
-                    continue
-                    
-                # Send to Gemini
-                with ui.create_spinner(ui._t("thinking")):
-                    try:
-                        response = session.send_message(final_prompt)
-                    except gemini.InvalidAPIKeyError:
-                        ui.print_error("Invalid API Key. Please use /apikey to reset it.")
-                        continue
-                    except gemini.GeminiError as e:
-                        ui.print_error(f"{ui._t('gemini_error')} {str(e)}")
-                        continue
+                    ui.print_error(f"Unexpected error during planning: {str(e)}")
+                    break
+                
+                if not plan:
+                    ui.print_error(ui.translate("plan_failed"))
+                    break
 
-                # Render AI Response
-                ui.print_message("Gemini", response)
+                # Show Plan / Analysis
+                ui.print_plan(plan)
+                
+                # If no actions, just show result and break loop (return to prompt)
+                if not plan.get("actions"):
+                    # Save to history for context
+                    agent_history.append({"role": "user", "content": current_request})
+                    agent_history.append({"role": "assistant", "content": plan.get("reasoning", "Analysis complete.")})
+                    config.save_history(agent_history)
+                    break
+
+                # Ask Confirmation for modifications
+                confirm_msg = ui.translate("confirm_apply")
+                if ui.confirm_plan(message=confirm_msg):
+                    # Execute
+                    ui.print_system(ui.translate("applying_changes"))
+                    results = fs.apply_actions(plan["actions"])
+                    
+                    success = True
+                    for res in results:
+                        if res["status"] == "success":
+                            ui.print_success(f"✔ {res['message']}")
+                        else:
+                            ui.print_error(f"✖ {res['message']}")
+                            success = False
+                    
+                    # Save state/history after success
+                    summary = f"Applied plan: {plan.get('plan', 'No summary')}"
+                    agent_history.append({"role": "user", "content": current_request})
+                    agent_history.append({"role": "assistant", "content": summary})
+                    config.save_history(agent_history)
+                    
+                    # Update project brain
+                    config.save_state({
+                        "last_task": current_request,
+                        "status": "applying",
+                        "errors": []
+                    }, root=Path("."))
+
+                    # Automaton: Run Tests and Self-Correct
+                    if success:
+                        ui.print_system("Running verification tests...")
+                        import subprocess
+                        try:
+                            test_cmd = get_test_command()
+                            ui.print_system(f"Executing: {' '.join(test_cmd)}")
+                            
+                            try:
+                                test_result = subprocess.run(
+                                    test_cmd,
+                                    capture_output=True, 
+                                    text=True, 
+                                    cwd=".",
+                                    encoding="utf-8",
+                                    errors="replace",
+                                    shell=True if sys.platform == "win32" else False,
+                                    timeout=120 # 2 minute limit
+                                )
+                                stdout = test_result.stdout or ""
+                                stderr = test_result.stderr or ""
+                                returncode = test_result.returncode
+                            except subprocess.TimeoutExpired as te:
+                                ui.print_error("Tests timed out.")
+                                stdout = te.stdout or ""
+                                stderr = te.stderr or ""
+                                returncode = 1
+                            except Exception as e:
+                                ui.print_error(f"Execution error: {e}")
+                                stdout = ""
+                                stderr = str(e)
+                                returncode = 1
+                            
+                            if returncode == 0:
+                                ui.print_success("Tests passed! Task completed.")
+                                config.save_state({
+                                    "last_task": current_request,
+                                    "status": "completed",
+                                    "errors": []
+                                }, root=Path("."))
+                                break
+                            else:
+                                # Check if we modified any source files that would affect tests
+                                modified_paths = [action.get("path", "") for action in plan.get("actions", [])]
+                                modified_src = any(
+                                    p.startswith("src/") or p.startswith("lib/") or p.endswith(".py") or p.endswith(".dart")
+                                    for p in modified_paths if not p.startswith("tests/")
+                                )
+                                
+                                # Only attempt self-correction if we modified actual source code
+                                if modified_src:
+                                    ui.print_error("Tests failed. Attempting self-correction...")
+                                    error_log = stdout + "\n" + stderr
+                                    config.save_state({
+                                        "last_task": current_request,
+                                        "status": "failed",
+                                        "errors": [line for line in error_log.splitlines() if "error" in line.lower()][:5]
+                                    }, root=Path("."))
+                                    current_request = f"The previous changes caused test failures:\n\n{error_log}\n\nPlease fix the errors in the files you modified. DO NOT modify test files."
+                                    # Continue to next iteration for self-correction
+                                else:
+                                    # We only modified non-source files (e.g., analysis.txt), so don't retry
+                                    ui.print_error("Tests failed, but the changes were unrelated to source code.")
+                                    ui.print_system("Test failures appear to be pre-existing. Skipping self-correction.")
+                                    config.save_state({
+                                        "last_task": current_request,
+                                        "status": "completed_with_test_warnings",
+                                        "errors": []
+                                    }, root=Path("."))
+                                    break
+                        except Exception as e:
+                            ui.print_error(f"Test execution failed: {e}")
+                            break
+                    else:
+                        break
+                else:
+                    ui.print_system(ui.translate("cancelled"))
+                    break
             
         except KeyboardInterrupt:
             ui.print_system("\nGoodbye.")

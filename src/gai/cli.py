@@ -18,16 +18,16 @@ def onboarding_flow() -> bool:
     """
     ui.print_welcome()
     
-    ui.console.print("Get your API key here: https://ai.google.dev/\n", style="link https://ai.google.dev/")
+    ui.console.print(f"{ui.translate('get_key_link')}\n", style=f"link {ui.translate('get_key_link').split()[-1]}")
     
-    key = ui.console.input("[bold yellow]Paste your API key here (hidden):[/bold yellow] ", password=True)
+    key = ui.console.input(f"[bold yellow]{ui.translate('api_key_prompt')}[/bold yellow] ", password=True)
     
     if not key.strip():
-        ui.print_error("API key cannot be empty.")
+        ui.print_error(ui.translate("api_key_missing"))
         return False
         
     config.save_api_key(key.strip())
-    ui.print_success("API key saved successfully!")
+    ui.print_success(ui.translate("api_key_saved"))
     return True
 
 @app.callback(invoke_without_command=True)
@@ -49,26 +49,41 @@ def main(
         # or we've implemented validate_api_key in gemini.py if we want to be strict.
         
         if prompt:
-            # One-shot mode
+            # Agent Mode (One-shot)
+            from gai import agent
             try:
                 # Process context inline if present
                 final_prompt = context.process_prompt(prompt)
 
-                # Call Gemini API
-                # We use ui.create_spinner now
-                with ui.create_spinner():
-                     response = gemini.generate_response(final_prompt)
+                # Generate Plan
+                with ui.create_spinner(ui.translate("agent_planning")):
+                     plan = agent.generate_plan(final_prompt)
                 
-                # Render Markdown response with UI style
-                ui.console.print(Markdown(response))
+                if not plan:
+                    ui.print_error(ui.translate("plan_failed"))
+                    raise typer.Exit(code=1)
+
+                # Show Plan
+                ui.print_plan(plan)
+                
+                if plan.get("actions"):
+                    # One-shot mode currently only SHOWS the plan, doesn't apply?
+                    # Or should it apply automatically in one-shot? 
+                    # Usually CLI tools apply if prompt is given.
+                    # But for safety, let's ask or use a flag. 
+                    # User said "whatever I want, it should do it as an agent".
+                    # Let's ask for confirmation to be safe.
+                    if ui.confirm_plan():
+                        ui.print_system(ui.translate("applying_changes"))
+                        from gai import fs
+                        fs.apply_actions(plan["actions"])
+                        ui.print_success("Changes applied.")
+                else:
+                    ui.print_system("No modifications suggested.")
                 
             except gemini.InvalidAPIKeyError:
-                ui.print_error("Invalid API Key. Please update it using `gai setup` (todo) or edit ~/.gai/config.json")
-                # For now just re-prompt could be nice, but simple error is enough
-                # Let's trigger onboarding again?
-                ui.console.print("[info]Let's try setting up your key again.[/info]")
-                onboarding_flow()
-                
+                ui.print_error("Invalid API Key. Use /apikey in interactive mode or edit ~/.gai/config.json")
+                raise typer.Exit(code=1)
             except gemini.GeminiError as e:
                 ui.print_error(str(e))
                 raise typer.Exit(code=1)

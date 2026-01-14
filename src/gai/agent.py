@@ -45,8 +45,10 @@ REQUIRED STRUCTURE:
 - **NO COMMENTS** inside the dictionary.
 - "action" must be one of: "create", "write", "replace", "append", "delete", "move".
 - Follow existing project patterns and architecture.
-- **TESTING**: If you modify code, assume the project has its own test suite (e.g., `flutter test` for Flutter, `pytest` for Python, `npm test` for Node). DO NOT try to install external test runners unless specifically asked.
-- **ESCAPING**: Pay extreme attention to backslashes and special characters in strings.
+- **TESTING**: If you modify code, assume the project has its own test suite (e.g., `flutter test`). DO NOT try to run tests as part of your `actions`. Tests are run automatically AFTER you apply changes. If you want to verify the current state without changes, suggest NO actions and I will ask the user to run tests.
+- **VERIFICATION**: If you are provided with error logs and believe your previous fix was correct, you should double-check the logic. If you are SURE it's correct but tests still fail, look for environment issues or misconfigurations in your plan.
+- **INFORMATION & ANALYSIS**: If the user asks a question or for an analysis (like "Explain this project"), provide the full answer/analysis in the "reasoning" field and leave the "actions" list EMPTY.
+- **SELF-CORRECTION SCOPE**: If tests fail after your changes, ONLY fix errors that are DIRECTLY caused by the files YOU modified. NEVER modify test files (tests/*) during self-correction. If tests fail due to pre-existing issues unrelated to your changes, simply report the failure and stop.
 """
 
 def validate_plan(plan_data: Any) -> bool:
@@ -131,7 +133,7 @@ def generate_plan(user_request: str, history: Optional[List[Dict[str, str]]] = N
     Handles scanning, prompting, and retry logic.
     """
     # 1. Scanning
-    with ui.create_spinner(ui._t("agent_scanning")):
+    with ui.create_spinner(ui.translate("agent_scanning")):
         project_context = scanner.scan_project()
     
     # 2. Build Prompt
@@ -167,6 +169,8 @@ def generate_plan(user_request: str, history: Optional[List[Dict[str, str]]] = N
                 f"STRICT INSTRUCTION: Return ONLY the dictionary starting with '{{' and ending with '}}'.\n"
                 f"Use triple single-quotes (''' ) for 'content' fields. DO NOT use markdown code blocks."
             )
+        except gemini.InvalidAPIKeyError:
+            raise
         except Exception as e:
             ui.print_error(f"Agent - Gemini Error: {e}")
             break

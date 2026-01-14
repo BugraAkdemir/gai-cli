@@ -5,7 +5,7 @@ Ensures all file actions are restricted to the current working directory.
 
 import os
 from pathlib import Path
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Optional
 
 class FileSystemError(Exception):
     """Base class for filesystem errors."""

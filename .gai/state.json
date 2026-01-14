@@ -1,0 +1,9 @@
+{
+  "last_task": "@. bana analiz edip t\u00fcrk\u00e7e \u015fekilde analix.txt ye kaydet",
+  "status": "failed",
+  "errors": [
+    "E       AssertionError: assert 'gemini-2.0-flash-lite' == 'gemini-2.0-flash-exp'",
+    "tests\\test_config.py:35: AssertionError",
+    "FAILED tests/test_config.py::test_get_model_default - AssertionError: assert ..."
+  ]
+}
