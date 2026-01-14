@@ -6,11 +6,12 @@ Handles loading/saving settings to ~/.gai/config.json and retrieving API keys.
 import os
 import json
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 # Constants
 CONFIG_DIR = Path.home() / ".gai"
 CONFIG_FILE = CONFIG_DIR / "config.json"
+HISTORY_FILE = CONFIG_DIR / "history.json"
 DEFAULT_MODEL = "gemini-2.0-flash-exp"
 
 def _ensure_config_dir():
@@ -90,3 +91,22 @@ def save_mode(mode: str) -> None:
     config = _load_config()
     config["mode"] = mode
     _save_config(config)
+
+def load_history() -> List[Dict[str, str]]:
+    """Load session history from disk."""
+    if not HISTORY_FILE.exists():
+        return []
+    try:
+        return json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+def save_history(history: List[Dict[str, str]]):
+    """Save session history to disk."""
+    _ensure_config_dir()
+    HISTORY_FILE.write_text(json.dumps(history, indent=2), encoding="utf-8")
+
+def clear_history():
+    """Clear session history."""
+    if HISTORY_FILE.exists():
+        HISTORY_FILE.unlink()

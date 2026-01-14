@@ -1,3 +1,4 @@
+import sys
 from prompt_toolkit import PromptSession
 from prompt_toolkit.styles import Style
 
@@ -12,9 +13,13 @@ AGENT_KEYWORDS = {
 
 def is_agent_task(text: str) -> bool:
     """Check if the text looks like an agent task."""
-    words = set(text.lower().split())
-    # Check for intersection with keywords
-    if words & AGENT_KEYWORDS:
+    text_lower = text.lower()
+    # Check if ANY keyword is a substring of the text
+    for kw in AGENT_KEYWORDS:
+        if kw in text_lower:
+            return True
+    # Special triggers for common requests
+    if any(q in text_lower for q in ["yap", "oluştur", "ekle", "nasıl yaparım", "yardım et"]):
         return True
     return False
 
@@ -41,6 +46,7 @@ def handle_command(command: str) -> bool:
     elif cmd == "/help":
         ui.print_system(ui._t("help_title"))
         ui.print_system(ui._t("help_desc"))
+        ui.print_system("  /newchat - Clear history and start a new session")
         return True
         
     elif cmd == "/apikey":
@@ -83,6 +89,11 @@ def handle_command(command: str) -> bool:
         ui.print_system(f"Current Model: {current}")
         return True
         
+    elif cmd == "/newchat":
+        config.clear_history()
+        ui.print_success("History cleared. Starting a new session.")
+        return "RESET"
+        
     else:
         ui.print_system(ui._t("unknown_command"))
         return True
@@ -98,27 +109,24 @@ def start_chat_session():
         ui.print_error(f"Initializing Gemini: {e}")
         return
 
-    # prompt_toolkit style
     style = Style.from_dict({
-        'prompt': 'ansigreen bold',
+        '': '#ffffff',
     })
     
-    # Initialize prompt_toolkit session with our completer
-    pt_session = PromptSession(
-        completer=FileContextCompleter(),
-        style=style,
-        complete_while_typing=True
-    )
+    pt_session = PromptSession(style=style)
     
-    ui.console.clear()
     ui.print_header()
     ui.print_system(ui._t("help_hint"))
     
+    # Load persistent history
+    agent_history = config.load_history()
+    if agent_history:
+        ui.print_system(f"Resuming previous session ({len(agent_history)} turns). Use /newchat to start fresh.")
+
     while True:
         try:
-            # Read input using prompt_toolkit for history and autocomplete
+            # Read input
             user_input = pt_session.prompt("> ")
-            
             cleaned_input = user_input.strip()
             
             if not cleaned_input:
@@ -126,48 +134,90 @@ def start_chat_session():
                 
             # Handle Slash Commands
             if cleaned_input.startswith("/"):
-                should_continue = handle_command(cleaned_input)
-                if not should_continue:
+                cmd_result = handle_command(cleaned_input)
+                if cmd_result == "RESET":
+                    agent_history = []
+                    continue
+                if not cmd_result:
                     break
                 continue
                 
             if cleaned_input.lower() in ("exit", "quit"):
                 ui.print_system(ui._t("goodbye"))
                 break
-            
-            # User input is managed by prompt_toolkit (no double printing)
 
             # Check Intent: Agent vs Chat
             if is_agent_task(cleaned_input):
                  ui.print_system(ui._t("agent_active"))
+                 current_request = cleaned_input
                  
-                 # Generate Plan
-                 with ui.create_spinner(ui._t("agent_planning")):
-                     plan = agent.generate_plan(cleaned_input)
-                 
-                 if plan:
+                 while True:
+                     # Generate Plan
+                     with ui.create_spinner(ui._t("agent_planning")):
+                         plan = agent.generate_plan(current_request, history=agent_history)
+                     
+                     if not plan:
+                         ui.print_error(ui._t("plan_failed"))
+                         break
+
                      # Show Plan
                      ui.print_plan(plan)
                      
-                     if plan.get("actions"):
-                         # Ask Confirmation
-                         if ui.confirm_plan():
-                             # Execute
-                             ui.print_system(ui._t("applying_changes"))
-                             results = fs.apply_actions(plan["actions"])
-                             
-                             for res in results:
-                                 if res["status"] == "success":
-                                     ui.print_success(f"✔ {res['message']}")
-                                 else:
-                                     ui.print_error(f"✖ {res['message']}")
-                         else:
-                             ui.print_system(ui._t("cancelled"))
-                     else:
+                     if not plan.get("actions"):
                          ui.print_system(ui._t("no_actions"))
-                 else:
-                     ui.print_error(ui._t("plan_failed"))
-                     
+                         break
+
+                     # Ask Confirmation
+                     if ui.confirm_plan():
+                         # Execute
+                         ui.print_system(ui._t("applying_changes"))
+                         results = fs.apply_actions(plan["actions"])
+                         
+                         success = True
+                         for res in results:
+                             if res["status"] == "success":
+                                 ui.print_success(f"✔ {res['message']}")
+                             else:
+                                 ui.print_error(f"✖ {res['message']}")
+                                 success = False
+                         
+                         # Save history after success (only the user request and a summary)
+                         summary = f"Applied plan: {plan.get('plan', 'No summary')}"
+                         agent_history.append({"role": "user", "content": current_request})
+                         agent_history.append({"role": "assistant", "content": summary})
+                         config.save_history(agent_history)
+
+                         # Automaton: Run Tests and Self-Correct
+                         if success:
+                             ui.print_system("Running verification tests...")
+                             import subprocess
+                             try:
+                                 # Heuristic for test command
+                                 test_cmd = [sys.executable, "-m", "pytest", "-v"]
+                                 # If it's a flutter project, we might want 'flutter test' 
+                                 # but we assume the environment has it. For now, python default.
+                                 
+                                 test_result = subprocess.run(
+                                     test_cmd,
+                                     capture_output=True, text=True, cwd="."
+                                 )
+                                 
+                                 if test_result.returncode == 0:
+                                     ui.print_success("Tests passed! Task completed.")
+                                     break
+                                 else:
+                                     ui.print_error("Tests failed. Attempting self-correction...")
+                                     error_log = test_result.stdout + "\n" + test_result.stderr
+                                     current_request = f"The previous changes caused test failures:\n\n{error_log}\n\nPlease fix the errors."
+                                     continue
+                             except Exception as e:
+                                 ui.print_system(f"Auto-test skipped or failed: {e}")
+                                 break
+                         else:
+                             break
+                     else:
+                         ui.print_system(ui._t("cancelled"))
+                         break
             else:
                 # Normal Chat Flow
                 # Process context inclusions
@@ -178,7 +228,7 @@ def start_chat_session():
                     continue
                     
                 # Send to Gemini
-                with ui.create_spinner():
+                with ui.create_spinner(ui._t("gemini_thinking")):
                     try:
                         response = session.send_message(final_prompt)
                     except gemini.InvalidAPIKeyError:

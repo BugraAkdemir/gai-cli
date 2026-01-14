@@ -26,9 +26,13 @@ def is_ignored(path: Path) -> bool:
             return True
     return False
 
+# Max total context size (chars) to avoid token limit
+MAX_CONTEXT_SIZE = 100_000
+
 def scan_project(root: str = ".") -> str:
     """
     Scan the project and return a formatted context string.
+    Prioritizes src, tests, and config files.
     """
     root_path = Path(root).resolve()
     context_parts = []
@@ -38,42 +42,53 @@ def scan_project(root: str = ".") -> str:
     context_parts.append("Structure:")
     
     file_contents = []
+    total_size = 0
     
-    # First pass: structure
+    # Priority directories
+    PRIORITY_DIRS = {"src", "tests", "lib", "app"}
+    
+    # First pass: Get all files and categorize
+    all_files = []
     for dirpath, dirnames, filenames in os.walk(root_path):
-        # Modify dirnames in-place to skip ignored
         dirnames[:] = [d for d in dirnames if d not in IGNORED_DIRS]
-        
         current_dir = Path(dirpath)
         rel_dir = current_dir.relative_to(root_path)
         
-        if rel_dir == Path("."):
-            prefix = ""
-        else:
-            prefix = str(rel_dir) + "/"
-            
+        prefix = "" if rel_dir == Path(".") else str(rel_dir) + "/"
+        
         for f in filenames:
+            if f.startswith(".") and f not in [".env.example", ".gitignore", "pyproject.toml", "package.json"]:
+                continue
+            
             file_path = current_dir / f
             rel_file = prefix + f
             
-            # Skip hidden files unless important
-            if f.startswith(".") and f not in [".env.example", ".gitignore"]:
-                continue
-                
-            context_parts.append(f"- {rel_file}")
-            
-            # Content Collection Logic
-            if file_path.suffix in ALLOWED_EXTENSIONS:
-                try:
-                    stats = file_path.stat()
-                    if stats.st_size <= MAX_FILE_SIZE:
-                        try:
-                            content = file_path.read_text(encoding="utf-8", errors="ignore")
-                            file_contents.append(f"\n### File: {rel_file}\n```{file_path.suffix[1:]}\n{content}\n```")
-                        except Exception:
-                            pass # Skip read errors
-                except Exception:
-                    pass
+            is_priority = any(part in PRIORITY_DIRS for part in Path(rel_file).parts)
+            all_files.append((rel_file, file_path, is_priority))
+
+    # Add structure to context
+    for rel_file, _, _ in all_files:
+        context_parts.append(f"- {rel_file}")
+
+    # Second pass: Collect content, prioritizing priority files
+    # Sort files: priority first
+    all_files.sort(key=lambda x: not x[2])
+    
+    for rel_file, file_path, _ in all_files:
+        if file_path.suffix in ALLOWED_EXTENSIONS:
+            try:
+                stats = file_path.stat()
+                if stats.st_size <= MAX_FILE_SIZE:
+                    content = file_path.read_text(encoding="utf-8", errors="ignore")
+                    
+                    if total_size + len(content) > MAX_CONTEXT_SIZE:
+                        # Stop adding content if we exceed limit, but continue listing structure
+                        continue
+                        
+                    file_contents.append(f"\n### File: {rel_file}\n```{file_path.suffix[1:]}\n{content}\n```")
+                    total_size += len(content)
+            except Exception:
+                pass
 
     context_parts.append("\n## File Contents")
     context_parts.extend(file_contents)

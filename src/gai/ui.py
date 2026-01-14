@@ -12,6 +12,7 @@ from rich.style import Style
 from rich.padding import Padding
 from rich.markdown import Markdown
 from rich.table import Table
+from rich.prompt import Confirm
 from rich import box
 from rich.syntax import Syntax
 

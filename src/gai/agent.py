@@ -9,58 +9,39 @@ from typing import Dict, Any, Optional
 from gai import gemini, scanner, config, ui
 
 SYSTEM_PROMPT = """
-You are an expert Autonomous Code Agent.
-Your goal is to modify the user's project to fulfill their request.
-You will be provided with the Project Context (file structure and contents).
+You are an expert Autonomous Code Agent (similar to Cursor or Devin).
+Your goal is to modify the user's project to fulfill their request EXACTLY and COMPLETELY.
 
-# INSTRUCTIONS
-1. Analyze the user request.
-2. Decide which files need to be created, modified, or deleted.
-3. Output a CHANGE PLAN.
+# CRITICAL PHILOSOPHY
+- **COMPLETE THE JOB**: Do not leave things half-finished. If a task requires multiple steps, plan them all or execute the first major step and indicate what's next.
+- **READ BEFORE WRITE**: Analyze existing code carefully.
+- **NO PLACEHOLDERS**: Generate full, working code. Never use "code goes here" or comments like "implement logic here".
+- **SELF-CORRECTION**: If you are provided with error logs, ANALYZE them and fix your previous code.
+
+# PROJECT CONTEXT
+You will be provided with the Project Context (file structure and contents).
 
 # OUTPUT FORMAT: PYTHON DICTIONARY
 You must respond with a VALID PYTHON DICTIONARY.
-Do NOT use strict JSON if you are writing code, because escaping newlines in JSON is error-prone.
-Use Python's triple-quote syntax (`'''`) for multi-line strings.
-
-Structure:
+REQUIRED STRUCTURE:
 {
-  "reasoning": "Explain WHY you are making these changes. Think step-by-step.",
-  "plan": "A short, one-sentence summary of the action.",
+  "reasoning": "...",
+  "plan": "...",
   "actions": [
     {
-      "action": "create",
-      "path": "path/to/new/file.ext",
-      "content": '''
-def hello():
-    print("Hello World")
-'''
-    },
-    {
-      "action": "write", 
-      "path": "path/to/existing/file.ext",
-      "content": '''...full new content...'''
-    },
-    {
-       "action": "delete",
-       "path": "path/to/file_to_delete"
-    },
-    {
-       "action": "move",
-       "path": "path/source",
-       "content": "path/destination" 
+      "action": "...",
+      "path": "...",
+      "content": '''...'''
     }
   ]
 }
 
 # CRITICAL RULES
-- Output ONLY the raw dictionary. No markdown blocks like ```python ... ```.
-- **NO COMMENTS** inside the dictionary logic that would break `ast.literal_eval`.
-- If the user asks in a different language (e.g. Turkish), UNDERSTAND the intent, but KEEP THE KEYS (`reasoning`, `plan`, `actions`, `action`, `path`, `content`) EXACTLY AS ABOVE.
-- **FORCE ACTION**: If the user asks to create/write code, YOU MUST GENERATE IT. Do not say "it already exists" unless you see the EXACT code in the context.
+- Output ONLY the raw dictionary. DO NOT wrap it in markdown code blocks like ```python.
+- Use Python triple quotes (''' ) for the "content" field to handle multi-line code safely.
+- **NO COMMENTS** inside the dictionary.
+- If the code you are writing contains triple quotes, escape them or use double triple-quotes.
 - "action" must be one of: "create", "write", "replace", "append", "delete", "move".
-- "content" must be the full file content for create/write/append, or the destination path for move.
-- "path" must be relative to the project root.
 - Follow existing project patterns and architecture.
 """
 
@@ -81,20 +62,29 @@ def validate_plan(plan: Any) -> bool:
         # But for schema validation, just checking existence is good enough for now.
     return True
 
-def generate_plan(user_request: str) -> Optional[Dict[str, Any]]:
+def generate_plan(user_request: str, history: Optional[List[Dict[str, str]]] = None) -> Optional[Dict[str, Any]]:
     """
     Generate a modification plan based on user request.
-    Retries up to 2 times if JSON is malformed.
+    history: List of previous turns for context.
     """
     # 1. Scan Project
     ui.print_system("Scanning project files...")
-    context = scanner.scan_project()
-    ui.print_system(f"Context constructed: {len(context)} chars")
+    project_context = scanner.scan_project()
+    ui.print_system(f"Context constructed: {len(project_context)} chars")
     
     # 2. Construct Prompt
+    # Format history if exists
+    history_str = ""
+    if history:
+        history_str = "\n## SESSION HISTORY\n"
+        for turn in history:
+            role = "AGENT" if turn['role'] == 'assistant' else "USER"
+            history_str += f"{role}: {turn['content']}\n"
+
     base_prompt = (
         f"{SYSTEM_PROMPT}\n\n"
-        f"{context}\n\n"
+        f"{project_context}\n\n"
+        f"{history_str}\n"
         f"USER REQUEST: {user_request}"
     )
     
@@ -110,50 +100,52 @@ def generate_plan(user_request: str) -> Optional[Dict[str, Any]]:
             ui.print_error(f"Agent - Gemini Call Failed: {e}")
             return None
             
-        # 4. Parse JSON
+        # 4. Parse Response
         try:
-            # Strip markdown code blocks if present
             clean_text = response_text.strip()
+            
+            # Robust extraction: find the first '{' and last '}'
+            import re
+            match = re.search(r'(\{.*\})', clean_text, re.DOTALL)
+            if match:
+                clean_text = match.group(1)
+            
+            # Remove markdown delimiters if they survived regex
             if clean_text.startswith("```"):
                 lines = clean_text.splitlines()
-                # Remove first line (```json or ```)
-                lines = lines[1:]
-                # Remove last line if it is ``` 
-                if lines and lines[-1].strip() == "```":
-                    lines = lines[:-1]
+                if lines[0].startswith("```"): lines = lines[1:]
+                if lines and lines[-1].strip() == "```": lines = lines[:-1]
                 clean_text = "\n".join(lines)
-            
-            # Remove "json" prefix if literal (rare but possible outside markdown)
-            if clean_text.lower().startswith("json"):
-                 clean_text = clean_text[4:].strip()
 
+            # Attempt parsing
+            import ast
             try:
-                plan = json.loads(clean_text)
-            except json.JSONDecodeError:
-                # Fallback: Try ast.literal_eval for python-dict-like strings
-                import ast
+                # ast.literal_eval is safer and handles Python triple quotes perfectly
                 plan = ast.literal_eval(clean_text)
+            except (SyntaxError, ValueError):
+                # Fallback to JSON if it looks more like JSON
+                import json
+                plan = json.loads(clean_text)
             
             # 5. Validate Schema
             if not validate_plan(plan):
-                raise ValueError("Parsed JSON does not match expected schema (missing keys or wrong types).")
+                raise ValueError("Parsed plan does not match expected schema.")
                 
             return plan
 
-        except (json.JSONDecodeError, ValueError, SyntaxError) as e:
-            ui.print_error(f"Agent - Invalid Response: {e}")
+        except Exception as e:
+            ui.print_error(f"Agent - Parsing Failed (Attempt {attempt+1}): {e}")
             
             if attempt < max_retries:
-                ui.print_system("Retrying with strict JSON instructions...")
-                # Append error instruction to prompt for next attempt
+                ui.print_system("Retrying with stricter format instructions...")
                 current_prompt = (
                     f"{base_prompt}\n\n"
-                    f"PREVIOUS RESPONSE WAS INVALID JSON. ERROR: {str(e)}\n"
-                    f"CRITICAL: YOU MUST RETURN VALID STRICT JSON. NO MARKDOWN. NO COMMENTS.\n"
-                    f"ESCAPE NEWLINES IN STRINGS."
+                    f"ERROR IN PREVIOUS RESPONSE: {str(e)}\n"
+                    f"STRICT INSTRUCTION: Return ONLY a valid Python dictionary starting with '{{' and ending with '}}'.\n"
+                    f"Use triple single-quotes (''' ) for code blocks."
                 )
             else:
-                ui.print_error("Max retries reached. Agent failed to generate a valid plan.")
-                ui.print_system(f"Raw Response: {response_text[:500]}...") 
+                ui.print_error("Max retries reached. Raw response follows:")
+                ui.console.print(response_text)
                 return None
     return None
