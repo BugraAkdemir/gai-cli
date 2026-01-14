@@ -34,3 +34,6 @@ gai-ag = "gai.cli:start"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+gai = ["info.txt"]

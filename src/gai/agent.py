@@ -44,6 +44,7 @@ REQUIRED STRUCTURE:
 - **IMPORTANT**: If your code contains triple quotes, use double triple-quotes or escape them as `\\'\\'\\'`.
 - **NO COMMENTS** inside the dictionary.
 - "action" must be one of: "create", "write", "replace", "append", "delete", "move".
+- **DELETE ACTION**: The "delete" action works for both files and directories (recursive).
 - Follow existing project patterns and architecture.
 - **TESTING**: If you modify code, assume the project has its own test suite (e.g., `flutter test`). DO NOT try to run tests as part of your `actions`. Tests are run automatically AFTER you apply changes. If you want to verify the current state without changes, suggest NO actions and I will ask the user to run tests.
 - **VERIFICATION**: If you are provided with error logs and believe your previous fix was correct, you should double-check the logic. If you are SURE it's correct but tests still fail, look for environment issues or misconfigurations in your plan.

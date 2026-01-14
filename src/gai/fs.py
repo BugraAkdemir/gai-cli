@@ -106,18 +106,20 @@ def apply_actions(actions: List[Dict[str, str]], root: Optional[Path] = None) ->
 
             elif act_type == "delete":
                 if not target.exists():
-                    # Idempotent success or error? Let's say success but warn.
+                    result["status"] = "success"
                     result["message"] = f"Skipped delete (not found): {path_str}"
-                    result["status"] = "success"
                 else:
-                    if target.is_dir():
-                        # We generally don't support deleting dirs recursively for safety yet
-                        # Unless explicitly handled? Let's block for now for safety.
-                         raise FileSystemError("Deleting directories is not supported yet for safety.")
-                    
-                    target.unlink()
-                    result["status"] = "success"
-                    result["message"] = f"Deleted: {path_str}"
+                    try:
+                        if target.is_dir():
+                            import shutil
+                            shutil.rmtree(target)
+                            result["message"] = f"Deleted directory: {path_str}"
+                        else:
+                            target.unlink()
+                            result["message"] = f"Deleted: {path_str}"
+                        result["status"] = "success"
+                    except Exception as e:
+                        raise FileSystemError(f"Failed to delete {path_str}: {str(e)}")
 
             elif act_type in ("move", "rename"):
                 # 'content' field in this case is actually the 'destination' path

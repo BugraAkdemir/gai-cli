@@ -1,0 +1,6 @@
+Product: gai-ag (Gemini Autonomous Agent)
+Version: 1.6.0
+Developer: Bugra Akdemir
+Email: akdemirbugra5@gmail.com
+GitHub: https://github.com/bugraakdemir/gai-cli
+Description: A professional, fast, and intelligent command-line tool that brings the Google Gemini API to your terminal with autonomous agent capabilities.

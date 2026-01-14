@@ -205,6 +205,25 @@ def handle_command(command: str) -> bool:
         ui.print_success("History cleared. Starting a new session.")
         return "RESET"
         
+    elif cmd == "/info":
+        # Look for info.txt in the package directory
+        info_path = Path(__file__).parent / "info.txt"
+        
+        # Fallback to CWD (for dev repo root)
+        if not info_path.exists():
+            info_path = Path("info.txt")
+            
+        if info_path.exists():
+            try:
+                from rich.panel import Panel
+                content = info_path.read_text(encoding="utf-8")
+                ui.console.print(Panel(content.strip(), title="[accent]Application Info[/accent]", border_style="accent"))
+            except Exception as e:
+                ui.print_error(f"Could not read info.txt: {e}")
+        else:
+            ui.print_error("info.txt not found. Please ensure it exists in the package directory.")
+        return True
+        
     else:
         ui.print_system(ui.translate("unknown_command"))
         return True
