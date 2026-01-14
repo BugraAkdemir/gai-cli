@@ -12,8 +12,8 @@ from rich.style import Style
 from rich.padding import Padding
 from rich.markdown import Markdown
 from rich.table import Table
-from rich.prompt import Confirm
 from rich import box
+from rich.syntax import Syntax
 
 from gai import config, languages, themes
 
@@ -109,6 +109,20 @@ def print_plan(plan: dict):
         
     # Indent the table
     console.print(Padding(table, (0, 0, 0, 2)))
+    
+    # NEW: Show code previews
+    for action in plan.get("actions", []):
+        act_type = action.get("action", "unknown").lower()
+        path = action.get("path", "unknown")
+        content = action.get("content", "")
+        
+        if content and act_type in ["create", "write", "replace", "append"]:
+            console.print(f"\n  [accent]📄 {path}[/accent]")
+            # Try to guess lexer from suffix
+            ext = path.split('.')[-1] if '.' in path else 'txt'
+            syntax = Syntax(content, ext, theme="monokai", line_numbers=True, word_wrap=True)
+            console.print(Padding(syntax, (0, 0, 1, 4)))
+    
     console.print()
 
 def confirm_plan() -> bool:

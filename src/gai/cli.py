@@ -80,10 +80,5 @@ def start():
     """Entry point for the script."""
     app()
 
-
-def start():
-    """Entry point for the script."""
-    app()
-
 if __name__ == "__main__":
     start()

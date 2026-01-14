@@ -80,3 +80,13 @@ def save_theme(theme: str):
     config = _load_config()
     config["theme"] = theme
     _save_config(config)
+
+def get_mode() -> str:
+    """Get the operation mode (agent or chat). Default: agent."""
+    return _load_config().get("mode", "agent")
+
+def save_mode(mode: str) -> None:
+    """Save the operation mode."""
+    config = _load_config()
+    config["mode"] = mode
+    _save_config(config)
