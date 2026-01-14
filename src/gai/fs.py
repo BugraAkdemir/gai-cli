@@ -17,8 +17,8 @@ class UnsafePathError(FileSystemError):
 
 # Safety constants
 IGNORED_DIRS = {
-    ".git", "__pycache__", "node_modules", "venv", ".venv", 
-    "dist", "build", ".idea", ".vscode", "coverage"
+    'node_modules', '.git', '__pycache__', 'venv', '.venv', '.env', 
+    'build', 'dist', '.pytest_cache', '.gai', '.vscode', 'coverage'
 }
 
 SYSTEM_PATHS = {
@@ -26,28 +26,23 @@ SYSTEM_PATHS = {
     "/etc", "/usr", "/bin", "/sbin", "/var", "/opt"
 }
 
-def validate_path(path: Union[str, Path], allow_new: bool = True) -> Path:
+def validate_path(path: Union[str, Path], root: Optional[Path] = None, allow_new: bool = True) -> Path:
     """
     Validate that a path is safe to modify.
     
     Args:
         path: Relative or absolute path.
+        root: The allowed base directory (default: CWD).
         allow_new: If True, path doesn't need to exist yet.
-    
-    Returns:
-        Path: Resolved absolute path.
-        
-    Raises:
-        UnsafePathError: If path is unsafe.
     """
-    cwd = Path.cwd().resolve()
+    cwd = (root or Path.cwd()).resolve()
     target_path = Path(path).resolve()
     
-    # Check if path is within CWD
+    # Check if path is within root
     try:
         target_path.relative_to(cwd)
     except ValueError:
-        raise UnsafePathError(f"Path restricted: {path} is outside the project directory.")
+        raise UnsafePathError(f"Path restricted: {path} is outside the allowed directory ({cwd}).")
         
     # Check for specific system path prefixes (defensive depth)
     target_str = str(target_path)
@@ -65,12 +60,13 @@ def validate_path(path: Union[str, Path], allow_new: bool = True) -> Path:
 
     return target_path
 
-def apply_actions(actions: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+def apply_actions(actions: List[Dict[str, str]], root: Optional[Path] = None) -> List[Dict[str, Any]]:
     """
     Execute a list of file actions.
     
     Args:
         actions: List of dicts with 'action', 'path', 'content'.
+        root: The base directory for operations.
         
     Returns:
          List of results dicts: {'path': str, 'status': 'success'|'error', 'message': str}
@@ -85,7 +81,7 @@ def apply_actions(actions: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         result = {"path": path_str, "status": "pending"}
         
         try:
-            target = validate_path(path_str, allow_new=True)
+            target = validate_path(path_str, root=root, allow_new=True)
             
             if act_type in ("create", "write", "replace"):
                 # Ensure parent dirs exist
@@ -155,9 +151,9 @@ def apply_actions(actions: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         
     return results
 
-def read_file(path: str) -> str:
+def read_file(path: str, root: Optional[Path] = None) -> str:
     """Read a file safely."""
-    target = validate_path(path)
+    target = validate_path(path, root=root)
     if not target.exists():
         raise FileNotFoundError(f"File not found: {path}")
     return target.read_text(encoding="utf-8")

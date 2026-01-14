@@ -1,6 +1,10 @@
 # gai-cli (Gemini AI CLI)
 
 `gai-cli`, Google Gemini API'sini terminale taşıyan, profesyonel, hızlı ve akıllı bir komut satırı aracıdır. Hem doğrudan soru sorabilir hem de projeniz üzerinde otomatik değişiklikler yapabilen gelişmiş bir "Agent" moduna sahiptir.
+- **Otonom Agent Modu**: Hataları kendi kendine düzeltir, testleri koşturur ve çözüm üretir.
+- **Proje Hafızası (Brain)**: Her projede kendi `.gai/` klasörünü oluşturur; geçmişi, durumu ve hataları orada saklar.
+- **Zeki Tarama**: Token tasarrufu için proje yapısını önbelleğe alır ve kritik dosyaları önceliklendirir.
+- **Polyglot Desteği**: Flutter, Node.js ve Python projelerini otomatik algılar.
 
 ## ✨ Özellikler
 

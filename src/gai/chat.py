@@ -4,6 +4,8 @@ from prompt_toolkit.styles import Style
 
 from gai import gemini, context, ui, config, agent, fs
 from gai.completer import FileContextCompleter
+from typing import List
+from pathlib import Path
 
 AGENT_KEYWORDS = {
     "add", "create", "make", "write", "update", "modify", "change", "fix", 
@@ -14,14 +16,35 @@ AGENT_KEYWORDS = {
 def is_agent_task(text: str) -> bool:
     """Check if the text looks like an agent task."""
     text_lower = text.lower()
-    # Check if ANY keyword is a substring of the text
+    words = text_lower.split()
+    
+    # Check if ANY keyword is present as a full word
     for kw in AGENT_KEYWORDS:
-        if kw in text_lower:
+        if kw in words:
             return True
-    # Special triggers for common requests
-    if any(q in text_lower for q in ["yap", "oluştur", "ekle", "nasıl yaparım", "yardım et"]):
-        return True
+            
+    # Substring matches for Turkish suffixes (e.g. 'ekle', 'eklesene')
+    turkish_triggers = ["yap", "oluştur", "ekle", "sil", "taşı", "düzelt"]
+    for trigger in turkish_triggers:
+        if trigger in text_lower and len(text_lower) < 50: # Limit length for safety
+             return True
+
     return False
+
+def get_test_command() -> List[str]:
+    """Detect project type and return the appropriate test command."""
+    cwd = Path(".")
+    
+    # Flutter
+    if (cwd / "pubspec.yaml").exists():
+        return ["flutter", "test"]
+    
+    # Node.js
+    if (cwd / "package.json").exists():
+        return ["npm", "test"]
+        
+    # Python (Default)
+    return [sys.executable, "-m", "pytest", "-v"]
 
 def handle_command(command: str) -> bool:
     """
@@ -181,33 +204,56 @@ def start_chat_session():
                                  ui.print_error(f"✖ {res['message']}")
                                  success = False
                          
-                         # Save history after success (only the user request and a summary)
+                         # Save state/history after success (only the user request and a summary)
                          summary = f"Applied plan: {plan.get('plan', 'No summary')}"
                          agent_history.append({"role": "user", "content": current_request})
                          agent_history.append({"role": "assistant", "content": summary})
                          config.save_history(agent_history)
+                         
+                         # Update project brain
+                         config.save_state({
+                             "last_task": current_request,
+                             "status": "applying",
+                             "errors": []
+                         })
 
                          # Automaton: Run Tests and Self-Correct
                          if success:
                              ui.print_system("Running verification tests...")
                              import subprocess
                              try:
-                                 # Heuristic for test command
-                                 test_cmd = [sys.executable, "-m", "pytest", "-v"]
-                                 # If it's a flutter project, we might want 'flutter test' 
-                                 # but we assume the environment has it. For now, python default.
+                                 test_cmd = get_test_command()
+                                 ui.print_system(f"Executing: {' '.join(test_cmd)}")
                                  
                                  test_result = subprocess.run(
                                      test_cmd,
-                                     capture_output=True, text=True, cwd="."
+                                     capture_output=True, 
+                                     text=True, 
+                                     cwd=".",
+                                     encoding="utf-8",
+                                     errors="replace",
+                                     shell=True if sys.platform == "win32" else False
                                  )
+                                 
+                                 stdout = test_result.stdout or ""
+                                 stderr = test_result.stderr or ""
                                  
                                  if test_result.returncode == 0:
                                      ui.print_success("Tests passed! Task completed.")
+                                     config.save_state({
+                                         "last_task": current_request,
+                                         "status": "completed",
+                                         "errors": []
+                                     }, root=Path("."))
                                      break
                                  else:
                                      ui.print_error("Tests failed. Attempting self-correction...")
-                                     error_log = test_result.stdout + "\n" + test_result.stderr
+                                     error_log = stdout + "\n" + stderr
+                                     config.save_state({
+                                         "last_task": current_request,
+                                         "status": "failed",
+                                         "errors": [line for line in error_log.splitlines() if "error" in line.lower()][:5]
+                                     }, root=Path("."))
                                      current_request = f"The previous changes caused test failures:\n\n{error_log}\n\nPlease fix the errors."
                                      continue
                              except Exception as e:
@@ -228,7 +274,7 @@ def start_chat_session():
                     continue
                     
                 # Send to Gemini
-                with ui.create_spinner(ui._t("gemini_thinking")):
+                with ui.create_spinner(ui._t("thinking")):
                     try:
                         response = session.send_message(final_prompt)
                     except gemini.InvalidAPIKeyError:

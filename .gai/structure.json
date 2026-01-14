@@ -1,0 +1,8 @@
+{
+  "structure": [
+    {
+      "rel_path": "src/main.py",
+      "priority": true
+    }
+  ]
+}

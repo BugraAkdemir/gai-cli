@@ -79,10 +79,13 @@ def validate_api_key() -> bool:
 
 def generate_response(
     prompt: str,
+    history: Optional[list] = None,
+    system_instruction: Optional[str] = None,
     model_name: Optional[str] = None
 ) -> str:
     """
     Generate a response from the Gemini API.
+    Supports multi-turn history and system instructions.
     """
     # Get API key
     api_key = _get_api_key()
@@ -94,10 +97,32 @@ def generate_response(
         # Initialize the client
         client = genai.Client(api_key=api_key)
         
+        # Prepare contents
+        contents = []
+        if history:
+            for turn in history:
+                # API expects 'model' role for assistant
+                role = "model" if turn.get("role") == "assistant" else "user"
+                contents.append({
+                    "role": role,
+                    "parts": [{"text": turn.get("content", "")}]
+                })
+        
+        contents.append({
+            "role": "user",
+            "parts": [{"text": prompt}]
+        })
+        
+        # Config with system instruction
+        config_args = {}
+        if system_instruction:
+            config_args["system_instruction"] = system_instruction
+            
         # Generate response
         response = client.models.generate_content(
             model=model_name,
-            contents=prompt
+            contents=contents,
+            config=config_args
         )
         
         # Extract and return text
@@ -107,14 +132,12 @@ def generate_response(
             raise GeminiError("Received empty response from Gemini API")
             
     except Exception as e:
-        # Check for 403/401 pattern in string if specific exception type isn't available
         msg = str(e)
         if "403" in msg or "401" in msg or "PERMISSION_DENIED" in msg or "unauthenticated" in msg.lower():
             raise InvalidAPIKeyError("Invalid API Key.")
             
         if isinstance(e, (APIKeyMissingError, GeminiError)):
             raise
-        # Wrap other exceptions in GeminiError
         raise GeminiError(f"Error communicating with Gemini API: {str(e)}") from e
 
 

@@ -9,28 +9,39 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 # Constants
-CONFIG_DIR = Path.home() / ".gai"
-CONFIG_FILE = CONFIG_DIR / "config.json"
-HISTORY_FILE = CONFIG_DIR / "history.json"
+GLOBAL_CONFIG_DIR = Path.home() / ".gai"
+GLOBAL_CONFIG_FILE = GLOBAL_CONFIG_DIR / "config.json"
 DEFAULT_MODEL = "gemini-2.0-flash-exp"
 
-def _ensure_config_dir():
-    """Ensure the config directory exists."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+def get_project_dir(root: Optional[Path] = None) -> Path:
+    """Get the local .gai directory. Creates it if missing."""
+    base = root if root else Path.cwd()
+    pdir = base / ".gai"
+    if not pdir.exists():
+        pdir.mkdir(parents=True, exist_ok=True)
+    return pdir
+
+def get_history_file(root: Optional[Path] = None) -> Path:
+    """Get the path to the project-specific history file."""
+    return get_project_dir(root) / "history.json"
+
+def get_state_file(root: Optional[Path] = None) -> Path:
+    """Get the path to the project-specific state file."""
+    return get_project_dir(root) / "state.json"
 
 def _load_config() -> Dict[str, Any]:
-    """Load configuration from disk."""
-    if not CONFIG_FILE.exists():
+    """Load global configuration from disk."""
+    if not GLOBAL_CONFIG_FILE.exists():
         return {}
     try:
-        return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        return json.loads(GLOBAL_CONFIG_FILE.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return {}
 
 def _save_config(config: Dict[str, Any]):
-    """Save configuration to disk."""
-    _ensure_config_dir()
-    CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    """Save global configuration to disk."""
+    GLOBAL_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    GLOBAL_CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
 
 def get_api_key() -> Optional[str]:
     """
@@ -92,21 +103,38 @@ def save_mode(mode: str) -> None:
     config["mode"] = mode
     _save_config(config)
 
-def load_history() -> List[Dict[str, str]]:
-    """Load session history from disk."""
-    if not HISTORY_FILE.exists():
+def load_history(root: Optional[Path] = None) -> List[Dict[str, str]]:
+    """Load session history from the local project .gai directory."""
+    hfile = get_history_file(root)
+    if not hfile.exists():
         return []
     try:
-        return json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+        return json.loads(hfile.read_text(encoding="utf-8"))
     except Exception:
         return []
 
-def save_history(history: List[Dict[str, str]]):
-    """Save session history to disk."""
-    _ensure_config_dir()
-    HISTORY_FILE.write_text(json.dumps(history, indent=2), encoding="utf-8")
+def save_history(history: List[Dict[str, str]], root: Optional[Path] = None):
+    """Save session history to the local project .gai directory."""
+    hfile = get_history_file(root)
+    hfile.write_text(json.dumps(history, indent=2), encoding="utf-8")
 
-def clear_history():
-    """Clear session history."""
-    if HISTORY_FILE.exists():
-        HISTORY_FILE.unlink()
+def clear_history(root: Optional[Path] = None):
+    """Clear session history for the current project."""
+    hfile = get_history_file(root)
+    if hfile.exists():
+        hfile.unlink()
+
+def load_state(root: Optional[Path] = None) -> Dict[str, Any]:
+    """Load project state from the local .gai directory."""
+    sfile = get_state_file(root)
+    if not sfile.exists():
+        return {}
+    try:
+        return json.loads(sfile.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+def save_state(state: Dict[str, Any], root: Optional[Path] = None):
+    """Save project state to the local .gai directory."""
+    sfile = get_state_file(root)
+    sfile.write_text(json.dumps(state, indent=2), encoding="utf-8")

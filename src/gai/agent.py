@@ -4,7 +4,9 @@ Handles intent detection, plan generation, and prompt engineering.
 """
 
 import json
-from typing import Dict, Any, Optional
+import re
+import ast
+from typing import Dict, Any, Optional, List
 
 from gai import gemini, scanner, config, ui
 
@@ -26,7 +28,7 @@ You must respond with a VALID PYTHON DICTIONARY.
 REQUIRED STRUCTURE:
 {
   "reasoning": "...",
-  "plan": "...",
+  "plan": "Step-by-step description (can be string or list)",
   "actions": [
     {
       "action": "...",
@@ -39,113 +41,135 @@ REQUIRED STRUCTURE:
 # CRITICAL RULES
 - Output ONLY the raw dictionary. DO NOT wrap it in markdown code blocks like ```python.
 - Use Python triple quotes (''' ) for the "content" field to handle multi-line code safely.
+- **IMPORTANT**: If your code contains triple quotes, use double triple-quotes or escape them as `\\'\\'\\'`.
 - **NO COMMENTS** inside the dictionary.
-- If the code you are writing contains triple quotes, escape them or use double triple-quotes.
 - "action" must be one of: "create", "write", "replace", "append", "delete", "move".
 - Follow existing project patterns and architecture.
+- **TESTING**: If you modify code, assume the project has its own test suite (e.g., `flutter test` for Flutter, `pytest` for Python, `npm test` for Node). DO NOT try to install external test runners unless specifically asked.
+- **ESCAPING**: Pay extreme attention to backslashes and special characters in strings.
 """
 
-def validate_plan(plan: Any) -> bool:
-    """Validate that the plan follows the expected schema."""
-    if not isinstance(plan, dict):
+def validate_plan(plan_data: Any) -> bool:
+    """Validate the agent plan structure."""
+    if not isinstance(plan_data, dict):
         return False
-    if "plan" not in plan or not isinstance(plan["plan"], str):
+    
+    required_keys = ["reasoning", "plan", "actions"]
+    if not all(k in plan_data for k in required_keys):
         return False
-    if "actions" not in plan or not isinstance(plan["actions"], list):
+    
+    if not isinstance(plan_data["reasoning"], str):
         return False
-    for action in plan["actions"]:
+    if not isinstance(plan_data["plan"], (str, list)): 
+        return False
+    if not isinstance(plan_data["actions"], list):
+        return False
+        
+    for action in plan_data.get("actions", []):
         if not isinstance(action, dict):
             return False
-        if "action" not in action or "path" not in action:
+        if not all(k in action for k in ["action", "path"]):
             return False
-        # content is optional for some actions? prompt says create/write needs it.
-        # But for schema validation, just checking existence is good enough for now.
+            
     return True
+
+def clean_llm_response(text: str) -> str:
+    """Clean LLM response for robust parsing."""
+    # Remove markdown blocks if present
+    text = re.sub(r'```(?:python|json)?\n(.*?)\n```', r'\1', text, flags=re.DOTALL)
+    return text.strip()
+
+def parse_plan(text: str) -> Optional[Dict[str, Any]]:
+    """
+    Parse a plan from raw LLM text using multiple strategies.
+    Handles unescaped backslashes and other common LLM output issues.
+    """
+    content = clean_llm_response(text)
+    
+    # Strategy 1: Find the dict and try literal_eval
+    dict_match = re.search(r'\{.*\}', content, re.DOTALL)
+    if not dict_match:
+        return None
+        
+    dict_str = dict_match.group(0)
+
+    # Attempt 1: Standard ast.literal_eval
+    try:
+        plan_data = ast.literal_eval(dict_str)
+        if validate_plan(plan_data):
+            return plan_data
+    except Exception:
+        pass
+
+    # Attempt 2: Handle common backslash issues (e.g. C:\Users)
+    try:
+        # Escape backslashes that are not part of a valid escape sequence
+        # We look for a backslash that is NOT followed by another backslash or n, r, t, ", ', u, x
+        fixed_str = re.sub(r'\\(?![\\nrt"\'ux])', r'\\\\', dict_str)
+        plan_data = ast.literal_eval(fixed_str)
+        if validate_plan(plan_data):
+            return plan_data
+    except Exception:
+        pass
+
+    # Attempt 3: JSON fallback
+    try:
+        # JSON is stricter about quotes and escapes
+        # We try to clean it for JSON
+        json_clean = dict_str.replace("'''", '"').replace("'", '"')
+        plan_data = json.loads(json_clean)
+        if validate_plan(plan_data):
+            return plan_data
+    except Exception:
+        pass
+
+    return None
 
 def generate_plan(user_request: str, history: Optional[List[Dict[str, str]]] = None) -> Optional[Dict[str, Any]]:
     """
     Generate a modification plan based on user request.
-    history: List of previous turns for context.
+    Handles scanning, prompting, and retry logic.
     """
-    # 1. Scan Project
-    ui.print_system("Scanning project files...")
-    project_context = scanner.scan_project()
-    ui.print_system(f"Context constructed: {len(project_context)} chars")
+    # 1. Scanning
+    with ui.create_spinner(ui._t("agent_scanning")):
+        project_context = scanner.scan_project()
     
-    # 2. Construct Prompt
-    # Format history if exists
-    history_str = ""
-    if history:
-        history_str = "\n## SESSION HISTORY\n"
-        for turn in history:
-            role = "AGENT" if turn['role'] == 'assistant' else "USER"
-            history_str += f"{role}: {turn['content']}\n"
-
-    base_prompt = (
-        f"{SYSTEM_PROMPT}\n\n"
-        f"{project_context}\n\n"
-        f"{history_str}\n"
-        f"USER REQUEST: {user_request}"
+    # 2. Build Prompt
+    prompt = (
+        f"## PROJECT CONTEXT\n{project_context}\n"
+        f"## USER REQUEST\n{user_request}"
     )
     
-    current_prompt = base_prompt
+    current_prompt = prompt
     max_retries = 2
     
     for attempt in range(max_retries + 1):
-        # 3. Call Gemini
-        ui.print_system(f"Waiting for Gemini (Attempt {attempt+1}/{max_retries+1})...")
+        if attempt > 0:
+            ui.print_system(f"Retrying with stricter format instructions (Attempt {attempt+1})...")
+            
         try:
-            response_text = gemini.generate_response(current_prompt)
+            response_text = gemini.generate_response(
+                current_prompt, 
+                history=history,
+                system_instruction=SYSTEM_PROMPT
+            )
+            
+            # 4. Parse Response
+            plan = parse_plan(response_text)
+            if plan:
+                return plan
+            
+            # If parsing fails, refine prompt for retry
+            ui.print_error(f"Agent - Parsing Failed (Attempt {attempt+1})")
+            current_prompt = (
+                f"{prompt}\n\n"
+                f"ERROR: Your last response could not be parsed as a Python dictionary.\n"
+                f"STRICT INSTRUCTION: Return ONLY the dictionary starting with '{{' and ending with '}}'.\n"
+                f"Use triple single-quotes (''' ) for 'content' fields. DO NOT use markdown code blocks."
+            )
         except Exception as e:
-            ui.print_error(f"Agent - Gemini Call Failed: {e}")
-            return None
-            
-        # 4. Parse Response
-        try:
-            clean_text = response_text.strip()
-            
-            # Robust extraction: find the first '{' and last '}'
-            import re
-            match = re.search(r'(\{.*\})', clean_text, re.DOTALL)
-            if match:
-                clean_text = match.group(1)
-            
-            # Remove markdown delimiters if they survived regex
-            if clean_text.startswith("```"):
-                lines = clean_text.splitlines()
-                if lines[0].startswith("```"): lines = lines[1:]
-                if lines and lines[-1].strip() == "```": lines = lines[:-1]
-                clean_text = "\n".join(lines)
+            ui.print_error(f"Agent - Gemini Error: {e}")
+            break
 
-            # Attempt parsing
-            import ast
-            try:
-                # ast.literal_eval is safer and handles Python triple quotes perfectly
-                plan = ast.literal_eval(clean_text)
-            except (SyntaxError, ValueError):
-                # Fallback to JSON if it looks more like JSON
-                import json
-                plan = json.loads(clean_text)
-            
-            # 5. Validate Schema
-            if not validate_plan(plan):
-                raise ValueError("Parsed plan does not match expected schema.")
-                
-            return plan
-
-        except Exception as e:
-            ui.print_error(f"Agent - Parsing Failed (Attempt {attempt+1}): {e}")
-            
-            if attempt < max_retries:
-                ui.print_system("Retrying with stricter format instructions...")
-                current_prompt = (
-                    f"{base_prompt}\n\n"
-                    f"ERROR IN PREVIOUS RESPONSE: {str(e)}\n"
-                    f"STRICT INSTRUCTION: Return ONLY a valid Python dictionary starting with '{{' and ending with '}}'.\n"
-                    f"Use triple single-quotes (''' ) for code blocks."
-                )
-            else:
-                ui.print_error("Max retries reached. Raw response follows:")
-                ui.console.print(response_text)
-                return None
+    ui.print_error("Failed to generate a valid plan after retries.")
     return None
