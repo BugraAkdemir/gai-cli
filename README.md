@@ -1,54 +1,55 @@
 # gai-ag (Gemini Autonomous Agent)
 
-`gai-ag`, Google Gemini API'sini terminale taşıyan, profesyonel, hızlı ve akıllı bir komut satırı aracıdır. Hem doğrudan soru sorabilir hem de projeniz üzerinde otomatik değişiklikler yapabilen gelişmiş bir \"Agent\" moduna sahiptir.
-- **Otonom Agent Modu**: Hataları kendi kendine düzeltir, testleri koşturur ve çözüm üretir.
-- **Proje Hafızası (Brain)**: Her projede kendi `.gai/` klasörünü oluşturur; geçmişi, durumu ve hataları orada saklar.
-- **Zeki Tarama**: Token tasarrufu için proje yapısını önbelleğe alır ve kritik dosyaları önceliklendirir.
-- **Polyglot Desteği**: Flutter, Node.js ve Python projelerini otomatik algılar.
+`gai-ag` is a professional, fast, and intelligent command-line tool that brings the Google Gemini API to your terminal. It features an advanced "Agent" mode that can both answer questions directly and perform automatic modifications on your project.
 
-## ✨ Özellikler
+- **Autonomous Agent Mode**: Automatically fixes errors, runs tests, and generates solutions.
+- **Project Brain**: Creates a `.gai/` folder in each project to store history, state, and errors.
+- **Smart Scanning**: Caches project structure and prioritizes critical files to save tokens.
+- **Polyglot Support**: Automatically detects Flutter, Node.js, and Python projects.
 
-- 🤖 **Agent Modu**: Projenizdeki dosyaları analiz eder, istediğiniz değişiklikleri (kod yazma, dosya oluşturma, silme, taşıma) planlar ve onayınızla uygular.
-- 💬 **İnteraktif Sohbet**: Çok modlu sohbet arayüzü ile Gemini ile akıcı bir şekilde iletişim kurun.
-- 📁 **Context Injection (@)**: `@dosya.py` veya `@src/` kullanarak dosyalarınızı sohbete bağlam olarak ekleyin.
-- 🎨 **Premium UI**: `rich` kütüphanesi ile renklendirilmiş, şık ve okunabilir çıktı.
-- 🌍 **Çok Dilli Destek**: Türkçe ve İngilizce dil seçenekleri.
-- 🔒 **Güvenli İşlemler**: Dosya sistemi operasyonları proje dizini ile sınırlıdır.
+## ✨ Features
 
-## 🚀 Kurulum
+- 🤖 **Agent Mode**: Analyzes files in your project, plans requested changes (code writing, file creation, deletion, moving), and applies them with your approval.
+- 💬 **Interactive Chat**: Communicate fluently with Gemini through a multi-modal chat interface.
+- 📁 **Context Injection (@)**: Add files as context to your chat using `@file.py` or `@src/`.
+- 🎨 **Premium UI**: Stylish and readable output powered by the `rich` library.
+- 🌍 **Multi-language Support**: English and Turkish language options.
+- 🔒 **Secure Operations**: File system operations are restricted to the project directory.
 
-### PyPI'den (En Kolay)
+## 🚀 Installation
+
+### From PyPI (Easiest)
 ```bash
 pip install gai-ag
 ```
 
-### Geliştirme İçin
-1. Depoyu klonlayın:
+### For Development
+1. Clone the repository:
    ```bash
    git clone https://github.com/bugraakdemir/gai-cli.git
    cd gai-cli
    ```
 
-2. Bağımlılıkları yükleyin:
+2. Install dependencies:
    ```bash
    pip install -e .
    ```
 
-## 🛠️ Kullanım
+## 🛠️ Usage
 
-> **Not**: Terminal'den hem `gai` hem `gai-ag` komutu çalışır!
+> **Note**: Both `gai` and `gai-ag` commands work in the terminal!
 
-### Tek Seferlik Soru
+### One-time Question
 ```bash
-gai "Python'da liste üreteçleri (list comprehensions) nedir?"
-# veya
-gai-ag "Python'da liste üreteçleri nedir?"
+gai "What are list comprehensions in Python?"
+# or
+gai-ag "What are list comprehensions in Python?"
 ```
 
-### İnteraktif Mod (Sohbet & Agent)
-Sadece `gai` veya `gai-ag` yazarak interaktif modu başlatın:
+### Interactive Mode (Chat & Agent)
+Start the interactive mode by simply typing `gai` or `gai-ag`:
 ```bash
 gai
-# veya
+# or
 gai-ag
 ```
