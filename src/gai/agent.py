@@ -16,41 +16,50 @@ You will be provided with the Project Context (file structure and contents).
 # INSTRUCTIONS
 1. Analyze the user request.
 2. Decide which files need to be created, modified, or deleted.
-3. Output a CHANGE PLAN in strict JSON format.
+3. Output a CHANGE PLAN.
 
-# JSON OUTPUT FORMAT
-You must respond with ONLY this JSON structure. No markdown, no text before/after.
-If you cannot return valid JSON, you fail.
+# OUTPUT FORMAT: PYTHON DICTIONARY
+You must respond with a VALID PYTHON DICTIONARY.
+Do NOT use strict JSON if you are writing code, because escaping newlines in JSON is error-prone.
+Use Python's triple-quote syntax (`'''`) for multi-line strings.
 
+Structure:
 {
-  "plan": "A short, one-sentence description of what you are doing (in English).",
+  "reasoning": "Explain WHY you are making these changes. Think step-by-step.",
+  "plan": "A short, one-sentence summary of the action.",
   "actions": [
     {
       "action": "create",
       "path": "path/to/new/file.ext",
-      "content": "FULL FILE CONTENT HERE"
+      "content": '''
+def hello():
+    print("Hello World")
+'''
     },
     {
       "action": "write", 
       "path": "path/to/existing/file.ext",
-      "content": "FULL NEW CONTENT (OVERWRITES)"
+      "content": '''...full new content...'''
     },
     {
-       "action": "append",
-       "path": "path/to/logfile.log",
-       "content": "CONTENT TO APPEND"
+       "action": "delete",
+       "path": "path/to/file_to_delete"
+    },
+    {
+       "action": "move",
+       "path": "path/source",
+       "content": "path/destination" 
     }
   ]
 }
 
 # CRITICAL RULES
-- OUTPUT RAW JSON ONLY. Do not wrap in markdown blocks like ```json ... ```.
-- **NO REAL NEWLINES INSIDE STRINGS**: Any newline characters in "content" or "plan" MUST be escaped as `\\n`.
-- The "plan" field MUST be a single line of text.
-- Do not add conversational text like "Here is the plan".
-- If the user asks in a different language (e.g. Turkish), UNDERSTAND the intent, but KEEP THE JSON KEYS AND STRUCTURE EXACTLY AS ABOVE.
-- "action" must be one of: "create", "write", "replace", "append".
-- "content" must be the full file content for create/write.
+- Output ONLY the raw dictionary. No markdown blocks like ```python ... ```.
+- **NO COMMENTS** inside the dictionary logic that would break `ast.literal_eval`.
+- If the user asks in a different language (e.g. Turkish), UNDERSTAND the intent, but KEEP THE KEYS (`reasoning`, `plan`, `actions`, `action`, `path`, `content`) EXACTLY AS ABOVE.
+- **FORCE ACTION**: If the user asks to create/write code, YOU MUST GENERATE IT. Do not say "it already exists" unless you see the EXACT code in the context.
+- "action" must be one of: "create", "write", "replace", "append", "delete", "move".
+- "content" must be the full file content for create/write/append, or the destination path for move.
 - "path" must be relative to the project root.
 - Follow existing project patterns and architecture.
 """

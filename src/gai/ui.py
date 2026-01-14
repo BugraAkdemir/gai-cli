@@ -86,6 +86,9 @@ def print_system(message: str):
 def print_plan(plan: dict):
     """Display the proposed agent plan."""
     console.print()
+    if plan.get("reasoning"):
+        console.print(Padding(f"[info]Reasoning: {plan.get('reasoning')}[/info]", (0, 0, 1, 2)))
+        
     console.print(f"  [ai]{_t('plan_title')}[/ai] {plan.get('plan', 'No description')}")
     
     # Minimal clean table
@@ -98,6 +101,10 @@ def print_plan(plan: dict):
         path = action.get("path", "unknown")
         
         style = f"action.{act_type}" if act_type in ["create", "write", "replace", "append"] else "ai"
+        if act_type == "delete":
+            style = "error" # Red for delete
+        elif act_type in ("move", "rename"):
+            style = "warning" # Yellow for move
         table.add_row(f"[{style}]{act_type.upper()}[/{style}]", path)
         
     # Indent the table

@@ -85,7 +85,7 @@ def apply_actions(actions: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         result = {"path": path_str, "status": "pending"}
         
         try:
-            target = validate_path(path_str)
+            target = validate_path(path_str, allow_new=True)
             
             if act_type in ("create", "write", "replace"):
                 # Ensure parent dirs exist
@@ -107,6 +107,42 @@ def apply_actions(actions: List[Dict[str, str]]) -> List[Dict[str, Any]]:
                     f.write(content)
                 result["status"] = "success" 
                 result["message"] = f"Appended to: {path_str}"
+
+            elif act_type == "delete":
+                if not target.exists():
+                    # Idempotent success or error? Let's say success but warn.
+                    result["message"] = f"Skipped delete (not found): {path_str}"
+                    result["status"] = "success"
+                else:
+                    if target.is_dir():
+                        # We generally don't support deleting dirs recursively for safety yet
+                        # Unless explicitly handled? Let's block for now for safety.
+                         raise FileSystemError("Deleting directories is not supported yet for safety.")
+                    
+                    target.unlink()
+                    result["status"] = "success"
+                    result["message"] = f"Deleted: {path_str}"
+
+            elif act_type in ("move", "rename"):
+                # 'content' field in this case is actually the 'destination' path
+                dest_str = content.strip()
+                if not dest_str:
+                     raise FileSystemError(f"Move action requires destination path in 'content' field.")
+                
+                dest_path = validate_path(dest_str, allow_new=True)
+                
+                if not target.exists():
+                    raise FileSystemError(f"Source file not found: {path_str}")
+                
+                if dest_path.exists():
+                    raise FileSystemError(f"Destination already exists: {dest_str}")
+
+                # Ensure dest parent exists
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                target.rename(dest_path)
+                result["status"] = "success"
+                result["message"] = f"Moved: {path_str} -> {dest_str}"
                 
             else:
                 raise FileSystemError(f"Unknown action: {act_type}")
